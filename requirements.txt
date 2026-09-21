@@ -1,0 +1,10 @@
+# ==============================================================================
+# Auralis Production Runtime Dependencies
+# ==============================================================================
+fastapi==0.115.0
+uvicorn[standard]==0.31.0
+pydantic==2.9.2
+pydantic-settings==2.5.2
+yt-dlp==2024.9.27
+mutagen==1.47.0
+python-multipart==0.0.12
