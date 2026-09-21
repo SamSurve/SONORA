@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SONORA — Modern Music Downloader</title>
+  <meta name="description" content="Fast, clean, and free modern music downloader utility. Your music, everywhere.">
+
+  <!-- Inter & Editorial Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+
+  <!-- Startup Animation Overlay -->
+  <div id="startup-overlay" class="startup-overlay" aria-hidden="true">
+    <div class="startup-content">
+      <div class="sound-wave-graphic">
+        <svg viewBox="0 0 200 60" class="waveform-svg" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 30 Q 30 10, 50 30 T 90 30 T 130 30 T 170 30 T 190 30" stroke="currentColor" stroke-width="2" class="wave-line wave-line-1"/>
+          <path d="M10 30 Q 30 45, 50 30 T 90 30 T 130 30 T 170 30 T 190 30" stroke="currentColor" stroke-width="1.5" class="wave-line wave-line-2"/>
+          <path d="M10 30 Q 30 5, 50 30 T 90 30 T 130 30 T 170 30 T 190 30" stroke="currentColor" stroke-width="1" class="wave-line wave-line-3"/>
+        </svg>
+      </div>
+      <h1 class="startup-title">SONORA</h1>
+      <p class="startup-subtitle">MUSIC DOWNLOADER</p>
+    </div>
+  </div>
+
+  <!-- Header Navigation -->
+  <header class="site-header">
+    <div class="container header-container">
+      <a href="#" class="brand-logo">
+        <span class="logo-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+        </span>
+        <span class="brand-name">SONORA</span>
+      </a>
+
+      <nav class="site-nav">
+        <a href="#hero" class="nav-link active">Home</a>
+        <a href="#features" class="nav-link">Features</a>
+        <a href="#sites" class="nav-link">Supported Sites</a>
+        <a href="#faq" class="nav-link">FAQ</a>
+      </nav>
+
+      <div class="header-actions">
+        <button id="theme-toggle" class="icon-btn theme-toggle-btn" aria-label="Toggle theme">
+          <svg class="sun-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <svg class="moon-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main>
+    <!-- Hero Section -->
+    <section id="hero" class="hero-section">
+      <div class="container hero-grid">
+        <!-- Hero Left Column: Copy & Taglines -->
+        <div class="hero-content">
+          <div class="badge-pill">
+            <span class="badge-dot"></span>
+            <span>SONORA v3.0 • Next-Gen Audio Engine</span>
+          </div>
+
+          <h1 class="hero-headline">YOUR MUSIC.<br><span class="highlight">EVERYWHERE.</span></h1>
+          <p class="hero-subheadline">Paste. Download. Listen.</p>
+          <p class="hero-description">Fast, clean and free music downloader. Convert single tracks or full playlists into pristine audio formats instantly.</p>
+
+          <div class="platform-indicators">
+            <span class="platform-label">Supported Sources:</span>
+            <div class="platform-tags">
+              <span class="platform-tag">YouTube</span>
+              <span class="platform-tag">YouTube Music</span>
+              <span class="platform-tag">SoundCloud</span>
+              <span class="platform-tag">Bandcamp</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hero Right Column: Downloader Interactive Card -->
+        <div class="hero-interactive">
+          <div class="downloader-card" id="downloader-card">
+            
+            <!-- STATE 1: IDLE -->
+            <div id="state-idle" class="ui-state active">
+              <form id="download-form" onsubmit="return false;">
+                <div class="input-group">
+                  <span class="input-icon">
+                    <svg width="20" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                  </span>
+                  <input type="text" id="url-input" class="url-input" placeholder="Paste music or video link here..." autocomplete="off" spellcheck="false" required>
+                  <button type="button" id="clear-btn" class="clear-btn" title="Clear input" aria-label="Clear">✕</button>
+                  <button type="submit" id="submit-btn" class="btn btn-primary submit-btn">Inspect</button>
+                </div>
+              </form>
+
+              <!-- Format & Quality Selection Panel -->
+              <div class="format-selection-panel">
+                <label class="panel-label">Target Audio Format & Quality:</label>
+                <div class="format-grid">
+                  <button type="button" class="format-chip active" data-format="mp3_320" data-quality="320">
+                    <span class="chip-name">MP3 320k</span>
+                    <span class="chip-desc">High Compatibility</span>
+                  </button>
+                  <button type="button" class="format-chip" data-format="m4a" data-quality="best">
+                    <span class="chip-name">M4A (AAC)</span>
+                    <span class="chip-desc">Direct Stream Copy</span>
+                  </button>
+                  <button type="button" class="format-chip" data-format="opus" data-quality="best">
+                    <span class="chip-name">Opus</span>
+                    <span class="chip-desc">Direct Stream Copy</span>
+                  </button>
+                  <button type="button" class="format-chip" data-format="flac" data-quality="lossless">
+                    <span class="chip-name">FLAC</span>
+                    <span class="chip-desc">Lossless Container</span>
+                  </button>
+                  <button type="button" class="format-chip" data-format="mp3_256" data-quality="256">
+                    <span class="chip-name">MP3 256k</span>
+                    <span class="chip-desc">Balanced Storage</span>
+                  </button>
+                  <button type="button" class="format-chip" data-format="mp3_vbr" data-quality="v0">
+                    <span class="chip-name">MP3 VBR V0</span>
+                    <span class="chip-desc">Perceptual Opt</span>
+                  </button>
+                </div>
+                <p class="quality-note" id="quality-note">Direct Stream Copy preserves raw source stream without lossy re-encoding.</p>
+              </div>
+            </div>
+
+            <!-- STATE 2: INSPECTING -->
+            <div id="state-inspecting" class="ui-state">
+              <div class="state-loading">
+                <div class="spinner"></div>
+                <h3>Inspecting Link Metadata...</h3>
+                <p>Analyzing media stream and validating security rules.</p>
+              </div>
+            </div>
+
+            <!-- STATE 3: READY -->
+            <div id="state-ready" class="ui-state">
+              <div class="media-preview-card">
+                <div class="media-artwork-wrapper">
+                  <img id="ready-artwork" src="" alt="Album Artwork" class="media-artwork" onerror="this.src='/static/img/fallback-artwork.png'">
+                </div>
+                <div class="media-info">
+                  <span id="ready-type-badge" class="type-badge">Single Track</span>
+                  <h3 id="ready-title" class="media-title">Media Title</h3>
+                  <p id="ready-artist" class="media-artist">Artist / Channel</p>
+                  <p id="ready-duration" class="media-duration">0:00</p>
+                </div>
+              </div>
+
+              <!-- Playlist Track Checklist (Hidden for single tracks) -->
+              <div id="playlist-checklist-container" class="playlist-checklist-container" style="display: none;">
+                <div class="checklist-header">
+                  <span>Playlist Items (<span id="selected-count">0</span>/<span id="total-count">0</span>)</span>
+                  <button type="button" id="select-all-btn" class="btn-text">Select All</button>
+                </div>
+                <div id="playlist-items-list" class="playlist-items-list">
+                  <!-- Dynamically populated -->
+                </div>
+              </div>
+
+              <div class="action-buttons">
+                <button type="button" id="cancel-inspect-btn" class="btn btn-secondary">Go Back</button>
+                <button type="button" id="start-download-btn" class="btn btn-primary">Start Download</button>
+              </div>
+            </div>
+
+            <!-- STATE 4: DOWNLOADING -->
+            <div id="state-downloading" class="ui-state">
+              <div class="progress-card">
+                <div class="media-preview-mini">
+                  <img id="dl-artwork" src="" alt="Artwork" class="mini-artwork">
+                  <div class="mini-info">
+                    <h4 id="dl-title" class="mini-title">Track Title</h4>
+                    <p id="dl-status-text" class="mini-status">Downloading audio stream...</p>
+                  </div>
+                </div>
+
+                <div class="progress-bar-container">
+                  <div class="progress-bar-track">
+                    <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                  </div>
+                  <div class="progress-metrics">
+                    <span id="progress-percent" class="metric-percent">0%</span>
+                    <div class="metrics-right">
+                      <span id="dl-speed" class="metric">0.0 MB/s</span>
+                      <span id="dl-eta" class="metric">ETA: --s</span>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button" id="cancel-download-btn" class="btn btn-danger-outline">Cancel Download</button>
+              </div>
+            </div>
+
+            <!-- STATE 5: COMPLETED -->
+            <div id="state-completed" class="ui-state">
+              <div class="success-card">
+                <div class="success-icon">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </div>
+                <h3>Download Complete!</h3>
+                <h4 id="completed-title" class="completed-title">Track Title</h4>
+                <p id="completed-meta" class="completed-meta">320 kbps MP3 • 8.4 MB</p>
+
+                <div class="completed-actions">
+                  <a id="file-download-link" href="#" class="btn btn-primary btn-block" download>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Download File
+                  </a>
+                  <button type="button" id="reset-btn" class="btn btn-secondary btn-block">Download Another</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- STATE 6: FAILED -->
+            <div id="state-failed" class="ui-state">
+              <div class="error-card">
+                <div class="error-icon">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                </div>
+                <h3>Download Failed</h3>
+                <p id="error-message" class="error-message">An unexpected error occurred.</p>
+                <button type="button" id="error-retry-btn" class="btn btn-primary">Try Again</button>
+              </div>
+            </div>
+
+            <!-- STATE 7: CANCELLED -->
+            <div id="state-cancelled" class="ui-state">
+              <div class="notice-card">
+                <h3>Job Cancelled</h3>
+                <p>The download was cancelled safely without saving temporary files.</p>
+                <button type="button" id="cancelled-reset-btn" class="btn btn-primary">Start New Download</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="section features-section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Designed for Quality & Simplicity</h2>
+          <p class="section-subtitle">SONORA combines high-throughput engine architecture with modern human-centric design.</p>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </div>
+            <h3>High-Speed Downloads</h3>
+            <p>Direct stream copying bypasses re-encoding delays, delivering native Opus and M4A audio in seconds.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            </div>
+            <h3>Honest Quality</h3>
+            <p>Explicit acoustic taxonomy guarantees transparent codec conversion without misleading upscaling claims.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            </div>
+            <h3>Hardened Security</h3>
+            <p>Deep pre-flight SSRF protection, sanitized outputs, and multi-layered DNS validation keep your system safe.</p>
+          </div>
+
+          <div class="feature-card">
+            <div class="feature-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+            </div>
+            <h3>Playlist Automation</h3>
+            <p>Select specific tracks from full playlists and download them packaged in a clean, organized ZIP archive.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Supported Sites Section -->
+    <section id="sites" class="section sites-section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Supported Platforms</h2>
+          <p class="section-subtitle">SONORA supports metadata extraction and audio retrieval across major media providers.</p>
+        </div>
+        <div class="sites-grid">
+          <div class="site-card">YouTube</div>
+          <div class="site-card">YouTube Music</div>
+          <div class="site-card">SoundCloud</div>
+          <div class="site-card">Bandcamp</div>
+          <div class="site-card">Vimeo</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ Accordion Section -->
+    <section id="faq" class="section faq-section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Frequently Asked Questions</h2>
+        </div>
+        <div class="faq-list">
+          <details class="faq-item">
+            <summary class="faq-question">Is SONORA completely free to use?</summary>
+            <div class="faq-answer">
+              <p>Yes. SONORA is 100% free with no ads, no registration, and no tracking.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">What is the difference between Direct Stream Copy and Transcoding?</summary>
+            <div class="faq-answer">
+              <p>Direct Stream Copy extracts the raw source audio stream (Opus/M4A) without re-encoding, preserving exact fidelity and downloading fastest. Transcoding converts source audio to MP3 or FLAC for specific device compatibility.</p>
+            </div>
+          </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">Does converting to FLAC make lossy sources lossless?</summary>
+            <div class="faq-answer">
+              <p>No. FLAC is a lossless container, but converting a lossy YouTube/SoundCloud stream to FLAC cannot restore frequencies already discarded by the platform. SONORA communicates quality semantics transparently.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container footer-container">
+      <div class="footer-left">
+        <span class="footer-brand">SONORA</span>
+        <span class="footer-copy">• © 2026 SONORA. Your Music. Everywhere.</span>
+      </div>
+      <div class="footer-right">
+        <a href="#hero">Back to top ↑</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

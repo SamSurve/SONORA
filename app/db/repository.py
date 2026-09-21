@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     title TEXT,
     format TEXT NOT NULL,
     quality TEXT NOT NULL,
+    is_playlist INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'queued',
     progress INTEGER NOT NULL DEFAULT 0,
     speed REAL NOT NULL DEFAULT 0.0,
@@ -45,8 +46,14 @@ CREATE INDEX IF NOT EXISTS idx_tracks_job_id ON tracks(job_id);
 
 
 def init_db(conn: sqlite3.Connection) -> None:
-    """Idempotently executes table creation and index setup."""
+    """Idempotently executes table creation, index setup, and column migrations."""
     conn.executescript(SCHEMA_SQL)
+
+    # Check for is_playlist column in existing databases and migrate if missing
+    cursor = conn.execute("PRAGMA table_info(jobs);")
+    columns = {row[1] for row in cursor.fetchall()}
+    if "is_playlist" not in columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN is_playlist INTEGER NOT NULL DEFAULT 0;")
 
 
 def create_job(
@@ -55,18 +62,24 @@ def create_job(
     url: str,
     target_format: str,
     quality: str,
+    is_playlist: bool = False,
     title: str | None = None,
     expires_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Inserts a new job record."""
     now = datetime.now(UTC).isoformat()
     expires_str = expires_at.isoformat() if expires_at else None
+    playlist_int = 1 if is_playlist else 0
 
     query = """
-    INSERT INTO jobs (id, url, title, format, quality, status, progress, created_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, 'queued', 0, ?, ?)
+    INSERT INTO jobs (
+        id, url, title, format, quality, is_playlist, status, progress, created_at, expires_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?)
     """
-    conn.execute(query, (job_id, url, title, target_format, quality, now, expires_str))
+    conn.execute(
+        query, (job_id, url, title, target_format, quality, playlist_int, now, expires_str)
+    )
     return get_job(conn, job_id)  # type: ignore[return-value]
 
 
@@ -142,4 +155,55 @@ def get_tracks_for_job(conn: sqlite3.Connection, job_id: str) -> list[dict[str, 
     cursor = conn.execute(
         "SELECT * FROM tracks WHERE job_id = ? ORDER BY track_index ASC", (job_id,)
     )
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def update_track_status(
+    conn: sqlite3.Connection,
+    job_id: str,
+    track_index: int,
+    status: str,
+) -> bool:
+    """Updates the status of a specific track within a playlist job."""
+    query = "UPDATE tracks SET status = ? WHERE job_id = ? AND track_index = ?"
+    cursor = conn.execute(query, (status, job_id, track_index))
+    return cursor.rowcount > 0
+
+
+def get_expired_jobs(
+    conn: sqlite3.Connection, before_iso: str | None = None
+) -> list[dict[str, Any]]:
+    """Retrieves jobs whose expiration timestamp has passed and are in a terminal state."""
+    cutoff = before_iso or datetime.now(UTC).isoformat()
+    query = """
+    SELECT * FROM jobs
+    WHERE expires_at IS NOT NULL
+      AND expires_at <= ?
+      AND status IN ('completed', 'failed', 'cancelled')
+    """
+    cursor = conn.execute(query, (cutoff,))
+    return [dict(row) for row in cursor.fetchall()]
+
+
+def get_active_job_ids(conn: sqlite3.Connection) -> set[str]:
+    """Returns the set of job IDs that are currently queued or actively processing."""
+    query = """
+    SELECT id FROM jobs
+    WHERE status IN ('queued', 'fetching_metadata', 'downloading', 'converting', 'tagging')
+    """
+    cursor = conn.execute(query)
+    return {row[0] for row in cursor.fetchall()}
+
+
+def mark_job_expired(conn: sqlite3.Connection, job_id: str) -> bool:
+    """Marks a job as expired after storage cleanup."""
+    query = "UPDATE jobs SET status = 'expired', file_path = NULL WHERE id = ?"
+    cursor = conn.execute(query, (job_id,))
+    return cursor.rowcount > 0
+
+
+def list_jobs(conn: sqlite3.Connection, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    """Lists jobs ordered by creation timestamp descending."""
+    query = "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    cursor = conn.execute(query, (limit, offset))
     return [dict(row) for row in cursor.fetchall()]

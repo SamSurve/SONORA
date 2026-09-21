@@ -33,6 +33,8 @@ try:
         COMPLETED_DIR: Path = Path("data/completed")
         JOB_TTL_MINUTES: int = 60
         DISK_FREE_THRESHOLD_MB: int = 2048
+        JANITOR_SWEEP_INTERVAL_SECONDS: int = 300
+        SOCKET_TIMEOUT: int = 20
 
         # Security & Abuse Mitigation
         MAX_PLAYLIST_ITEMS: int = 100
@@ -67,6 +69,10 @@ except ImportError:
             self.COMPLETED_DIR: Path = Path(os.getenv("COMPLETED_DIR", "data/completed"))
             self.JOB_TTL_MINUTES: int = int(os.getenv("JOB_TTL_MINUTES", "60"))
             self.DISK_FREE_THRESHOLD_MB: int = int(os.getenv("DISK_FREE_THRESHOLD_MB", "2048"))
+            self.JANITOR_SWEEP_INTERVAL_SECONDS: int = int(
+                os.getenv("JANITOR_SWEEP_INTERVAL_SECONDS", "300")
+            )
+            self.SOCKET_TIMEOUT: int = int(os.getenv("SOCKET_TIMEOUT", "20"))
 
             self.MAX_PLAYLIST_ITEMS: int = int(os.getenv("MAX_PLAYLIST_ITEMS", "100"))
             self.RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))

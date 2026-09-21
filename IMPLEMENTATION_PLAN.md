@@ -1,294 +1,233 @@
-# 🛠️ PHASE 1 IMPLEMENTATION PLAN: FOUNDATION, ENVIRONMENT & SECURITY HARDENING
-**Project:** Auralis — Modern Production-Grade Music Downloader  
-**Phase:** Phase 1 of 5  
-**Status:** Ready for Review (Implementation Frozen Until Approval)  
-**Execution Guardrail:** Do not modify existing application files. Do not install dependencies until explicitly instructed.  
+# 🎵 PHASE 3 IMPLEMENTATION PLAN: SONORA FRONTEND & PRODUCT BUILD
+
+**Project Name:** SONORA
+**Product Category:** Modern Music Downloader
+**Phase:** Phase 3 — Frontend + Product Build
+**Status:** Plan Proposed (Awaiting Review & Approval)
+**Target Stack:** Python 3.12, FastAPI, SQLite (WAL), ThreadPoolExecutor, yt-dlp, FFmpeg, Mutagen, SSE, HTML5/CSS3/Vanilla JS
+**Architecture Guardrail:** The repaired Phase 1/2 backend foundation is protected. Do not rewrite backend core logic. Preserve legacy prototype files (`app.py`, `music_fixer.py`, `templates/index.html`, `ffmpeg.exe`).
 
 ---
 
-## 1. Phase 1 Objective & Scope
+## 1. Product Identity & Visual Direction
 
-The objective of Phase 1 is to establish the **rock-solid foundation, security perimeter, cross-platform utilities, and persistence layer** for the Auralis platform *alongside* the existing prototype without disrupting any existing files.
+### 1.1 Branding & Copy
+- **Product Name:** SONORA
+- **Tagline:** YOUR MUSIC. EVERYWHERE.
+- **Hero Sub-Headline:** Paste. Download. Listen.
+- **Supporting Copy:** Fast, clean and free music downloader.
+- **Scope Rule:** Apply SONORA branding consistently across page titles, logo, navigation, startup animation, metadata cards, notifications, footer, and documentation. Eliminate legacy prototype names (Auralis/TuneGrab) from user-facing copy.
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                      PHASE 1 SCOPE BOUNDARIES                    │
-├───────────────────────────────┬──────────────────────────────────┤
-│ IN SCOPE (Phase 1)            │ OUT OF SCOPE (Deferred to P2-P5) │
-├───────────────────────────────┼──────────────────────────────────┤
-│ • Git hygiene & .gitignore    │ • Asynchronous download engine   │
-│ • Dependency specifications   │ • Progress hooks & cancellation  │
-│ • Core configuration & logging│ • REST API routes (/jobs, etc.)  │
-│ • Deep multi-layer SSRF Guard │ • Server-Sent Events (SSE)       │
-│ • Dynamic FFmpeg resolution   │ • Modern Glassmorphic Web UI     │
-│ • SQLite persistence & WAL    │ • Mutagen ID3 tagging & ZIPs     │
-│ • Automated Phase 1 test suite│ • Legacy file deletion/migration │
-└───────────────────────────────┴──────────────────────────────────┘
-```
+### 1.2 Swiss-Inspired Visual System
+- **Base Theme (Light):** Warm off-white / light neutral background (`#F9F8F6`), near-black / charcoal text (`#121212`), pure white elevated surfaces (`#FFFFFF`), subtle neutral borders (`#E5E3DF`), dark control buttons (`#1E1E1E`), subtle violet/indigo accent (`#6366F1`).
+- **Dark Theme:** Charcoal background (`#121212`), elevated card surfaces (`#1E1E1E`), muted borders (`#2E2E2E`), soft white text (`#F3F4F6`), subtle violet accent (`#818CF8`).
+- **Typography:** High-impact editorial headline typography, clean modern sans-serif body, generous line height, clear hierarchy.
+- **Iconography:** Consistent stroke-based icon system (Lucide icons loaded via SVG).
+- **Prohibited Aesthetics:** No heavy glassmorphism, no neon cyberpunk gradients, no 3D objects, no particle spam, no noisy layout clutter.
 
 ---
 
-## 2. File Status Matrix
+## 2. File & Component Architecture
 
-### Files to Preserve (DO NOT MODIFY OR DELETE)
-The existing prototype files must remain completely intact and untouched to guarantee zero downtime and zero regression risk:
-
-| File Path | Purpose | Preservation Action |
-| :--- | :--- | :--- |
-| `app.py` | Existing Flask prototype entrypoint | **Strictly preserve.** Must remain callable as-is. |
-| `music_fixer.py` | Existing standalone CLI script | **Strictly preserve.** Do not alter or delete. |
-| `templates/index.html` | Existing prototype web template | **Strictly preserve.** Unchanged during Phase 1. |
-| `ffmpeg.exe` | Bundled Windows FFmpeg binary | **Preserve in root as fallback** for local execution while locator is initialized. |
-| `downloads/` | Existing downloads directory | **Preserve.** |
-
-### Files to Modify
-**NONE.** No existing file will be modified during Phase 1.
-
-### Files to Create
-All Phase 1 deliverables are net-new files structured within a clean package hierarchy:
+To maintain complete backward compatibility and satisfy `tests/test_preservation.py`, all new Phase 3 components reside cleanly in `app/main.py`, `app/api/`, and `app/static/`:
 
 ```
 e:\MUSIC DOWNLODER\
-│
-├── .gitignore                    # Comprehensive version control ignore rules
-├── pyproject.toml                # Project metadata, pytest & ruff tool configuration
-├── requirements.txt              # Pinned core production runtime dependencies
-├── requirements-dev.txt          # Pinned development, linting, and testing dependencies
-│
-├── app\                          # Application root package
-│   ├── __init__.py               # Package initializer
-│   │
-│   ├── core\                     # Core configuration, constants, security & logging
-│   │   ├── __init__.py
-│   │   ├── config.py             # Settings (Pydantic BaseSettings, MAX_CONCURRENT_WORKERS=4)
-│   │   ├── constants.py          # Audio semantics, format enums, job statuses, error codes
-│   │   ├── logging.py            # Structured logger setup
-│   │   └── security.py           # Deep SSRF guard, CIDR blacklists, DNS rebinding & redirect checker
-│   │
-│   ├── db\                       # SQLite persistence layer
-│   │   ├── __init__.py
-│   │   ├── database.py           # Connection factory, WAL configuration, transactional manager
-│   │   └── repository.py         # Schema migration DDL, index creation, job/track CRUD
-│   │
-│   └── engine\                   # Core system engines
-│       ├── __init__.py
-│       └── ffmpeg_locator.py     # Cross-platform dynamic FFmpeg resolution & validation
-│
-└── tests\                        # Automated test suite
-    ├── __init__.py
-    ├── conftest.py               # Test fixtures (temp paths, test database, mock URLs)
-    ├── test_security.py          # Deep SSRF, CIDR ranges, DNS rebinding, redirect tests
-    ├── test_ffmpeg_locator.py    # FFmpeg path resolution & version check tests
-    └── test_database.py          # SQLite WAL, schema initialization & CRUD tests
+├── app/
+│   ├── main.py                     # [NEW] FastAPI web server entrypoint & static route mounting
+│   ├── api/
+│   │   ├── __init__.py             # [NEW] API package initializer
+│   │   └── v1/
+│   │       ├── __init__.py         # [NEW] API v1 package initializer
+│   │       └── endpoints.py        # [NEW] REST & SSE Endpoints (/metadata, /jobs, /cancel, /events, /downloads)
+│   └── static/                     # [NEW] SONORA Web Application Frontend Assets
+│       ├── index.html              # [NEW] Complete SONORA single-page app HTML
+│       ├── css/
+│       │   └── styles.css          # [NEW] Design system variables, layout, animations, responsive rules
+│       └── js/
+│           ├── app.js              # [NEW] State machine manager, API client, SSE handler, playlist logic
+│           └── icons.js            # [NEW] Lucide SVG icon helper
+└── tests/
+    └── test_api.py                 # [NEW] FastAPI API & SSE endpoint automated integration tests
 ```
+
+### Legacy Preservation Matrix (DO NOT MODIFY OR DELETE)
+| Legacy File | Reason for Preservation |
+| :--- | :--- |
+| `app.py` | Enforced by `tests/test_preservation.py` SHA256 integrity check. |
+| `music_fixer.py` | Enforced by `tests/test_preservation.py` SHA256 integrity check. |
+| `templates/index.html` | Enforced by `tests/test_preservation.py` SHA256 integrity check. |
+| `ffmpeg.exe` | Enforced by `tests/test_preservation.py` SHA256 integrity check. |
+| `downloads/` | Enforced directory structure check. |
 
 ---
 
-## 3. Pinned Dependency Specifications
+## 3. Backend API Contract & Endpoints (`app/api/v1/endpoints.py`)
 
-### Runtime Dependencies (`requirements.txt`)
-```text
-fastapi==0.115.0
-uvicorn[standard]==0.31.0
-pydantic==2.9.2
-pydantic-settings==2.5.2
-yt-dlp==2024.9.27
-mutagen==1.47.0
-python-multipart==0.0.12
-```
+The Phase 3 FastAPI application in `app/main.py` mounts the following endpoints:
 
-### Development & Testing Dependencies (`requirements-dev.txt`)
-```text
-pytest==8.3.3
-pytest-asyncio==0.24.0
-httpx==0.27.2
-ruff==0.6.8
-```
+| Endpoint | Method | Input Schema | Purpose / Backend Service |
+| :--- | :--- | :--- | :--- |
+| `POST /api/v1/metadata` | `POST` | `{"url": "str", "is_playlist": bool}` | Calls `MetadataService.extract_metadata()`. Performs pre-flight SSRF check & returns normalized tracklist metadata. |
+| `POST /api/v1/jobs` | `POST` | `{"url": "str", "format": "str", "quality": "str", "is_playlist": bool, "selected_indices": [int], "title": "str"}` | Calls `JobManager.submit_job()`. Enforces rate limits & playlist quotas. Returns `{"job_id": "...", "status": "queued"}`. |
+| `GET /api/v1/jobs/{id}` | `GET` | `job_id` path param | Queries SQLite via `repository.get_job()`. Returns current status, progress, speed, ETA, error message. |
+| `POST /api/v1/jobs/{id}/cancel` | `POST` | `job_id` path param | Calls `JobManager.cancel_job()`. Signals cooperative cancel token. Returns `{"job_id": "...", "status": "cancelled"}`. |
+| `GET /api/v1/jobs/{id}/events` | `GET` | `job_id` path param | **Server-Sent Events (SSE)** stream. Listens to `JobContext` progress events and streams JSON events to browser. |
+| `GET /api/v1/downloads/{id}/file` | `GET` | `job_id` path param | Serves completed track audio or playlist zip archive using FastAPI `FileResponse` with safe `Content-Disposition` attachment headers. |
+| `GET /` | `GET` | None | Serves `app/static/index.html` (SONORA main landing page & app). |
 
 ---
 
-## 4. Phase 1 Implementation Tasks in Dependency Order
+## 4. Frontend State Machine & Interaction Design
+
+The SONORA web app operates on a strict, explicit state machine in `app.js`:
 
 ```mermaid
-flowchart TD
-    T1["Task 1.1: Git Hygiene & Repository Guardrails\n(.gitignore, pyproject.toml)"]
-    T2["Task 1.2: Dependency Manifests & Virtualenv\n(requirements.txt, requirements-dev.txt)"]
-    T3["Task 1.3: Core Constants & Structured Logging\n(constants.py, logging.py)"]
-    T4["Task 1.4: Configuration Subsystem\n(config.py: MAX_CONCURRENT_WORKERS=4)"]
-    T5["Task 1.5: Deep SSRF & Security Defense Engine\n(security.py: IPv4/IPv6 CIDRs, DNS rebinding)"]
-    T6["Task 1.6: Dynamic Cross-Platform FFmpeg Locator\n(ffmpeg_locator.py: PATH + Fallback)"]
-    T7["Task 1.7: Database & Persistence Layer\n(database.py, repository.py: SQLite WAL)"]
-    T8["Task 1.8: Automated Test Suite & Verification Gates\n(tests/test_*.py)"]
-
-    T1 --> T2
-    T2 --> T3
-    T3 --> T4
-    T4 --> T5
-    T4 --> T6
-    T4 --> T7
-    T5 --> T8
-    T6 --> T8
-    T7 --> T8
+stateDiagram-v2
+    [*] --> IDLE
+    IDLE --> INSPECTING: Submit URL
+    INSPECTING --> READY: Metadata Extracted
+    INSPECTING --> FAILED: Invalid URL / SSRF Rejection / yt-dlp Error
+    READY --> DOWNLOADING: Confirm Format & Click Download
+    DOWNLOADING --> COMPLETED: Progress Reaches 100% & Tagged
+    DOWNLOADING --> FAILED: Network / Transcode Error
+    DOWNLOADING --> CANCELLED: User Clicks Cancel
+    COMPLETED --> IDLE: Start New Download
+    FAILED --> IDLE: Retry / Reset
+    CANCELLED --> IDLE: Reset Form
 ```
 
-### Task 1.1: Git Hygiene & Repository Guardrails
-- **Files to Create:** `.gitignore`, `pyproject.toml`
-- **Actions:**
-  - Create `.gitignore` ignoring:
-    - Python virtual environments (`.venv/`, `venv/`, `env/`)
-    - Bytecode & caches (`__pycache__/`, `*.pyc`, `*.pyo`)
-    - Test & coverage artifacts (`.pytest_cache/`, `.coverage`, `htmlcov/`)
-    - Local data directories (`data/temp/`, `data/completed/`, `data/*.db`)
-    - OS metadata (`Thumbs.db`, `.DS_Store`, `desktop.ini`)
-    - Executable binaries (`ffmpeg.exe`, `ffprobe.exe`)
-  - Create `pyproject.toml` configuring:
-    - Python 3.12 target version
-    - Ruff linting rules (enforcing PEP 8, import sorting, bugbear checks)
-    - Pytest settings (asyncio mode, test discovery in `tests/`)
+### Detailed UI State Behaviors
 
-### Task 1.2: Dependency Manifests & Virtualenv Bootstrap
-- **Files to Create:** `requirements.txt`, `requirements-dev.txt`
-- **Actions:**
-  - Write explicit pinned versions for runtime and dev dependencies.
-  - Document setup commands in README / plan.
+1. **`IDLE` State:**
+   - Display: Main landing page, hero section, URL input bar (`[ link icon ] Paste music or video link here... [ X ] [ Download ]`).
+   - Controls: Format selector buttons (MP3 320/256/VBR, Native M4A, Native Opus, FLAC) with honest quality labels.
+   - Behavior: Clear button clears input; paste button reads clipboard if permitted.
 
-### Task 1.3: Core Constants & Structured Logging
-- **Files to Create:** `app/core/constants.py`, `app/core/logging.py`, `app/__init__.py`, `app/core/__init__.py`
-- **Actions:**
-  - Define `AudioFormat` enum:
-    - `NATIVE_OPUS` ("Direct Stream Copy - Opus")
-    - `NATIVE_M4A` ("Direct Stream Copy - M4A/AAC")
-    - `MP3_320` ("Transcoded MP3 - 320 kbps (High Compatibility)")
-    - `MP3_256` ("Transcoded MP3 - 256 kbps")
-    - `MP3_VBR` ("Transcoded MP3 - VBR V0")
-    - `FLAC` ("Transcoded FLAC - Lossless Container")
-  - Define `JobStatus` enum: `QUEUED`, `FETCHING_METADATA`, `DOWNLOADING`, `CONVERTING`, `COMPLETED`, `FAILED`, `CANCELLED`, `EXPIRED`.
-  - Define standard error codes: `INVALID_URL`, `SSRF_VIOLATION`, `JOB_NOT_FOUND`, `STORAGE_LIMIT_EXCEEDED`, `EXTRACTION_FAILED`.
-  - Set up standard `logging.config.dictConfig` with formatted console output.
+2. **`INSPECTING` State:**
+   - Display: URL input card morphs into loading state with subtle animated spinner and skeleton pulse.
+   - Behavior: Disables input and submit buttons while calling `POST /api/v1/metadata`.
 
-### Task 1.4: Configuration Subsystem (`app/core/config.py`)
-- **Files to Create:** `app/core/config.py`
-- **Actions:**
-  - Define `Settings` class using `pydantic_settings.BaseSettings`:
-    - `MAX_CONCURRENT_WORKERS: int = 4` (conservative default, overridable via `.env`)
-    - `JOB_TTL_MINUTES: int = 60` (ephemeral storage expiration threshold)
-    - `MAX_PLAYLIST_ITEMS: int = 100` (anti-DoS ceiling)
-    - `DISK_FREE_THRESHOLD_MB: int = 2048` (storage safety buffer)
-    - `TEMP_DIR: Path = Path("data/temp")`
-    - `COMPLETED_DIR: Path = Path("data/completed")`
-    - `DB_PATH: Path = Path("data/auralis.db")`
-    - `RATE_LIMIT_PER_MINUTE: int = 10`
-    - `ALLOWED_ORIGINS: list[str] = ["*"]`
-  - Ensure all directories (`data/temp`, `data/completed`) are created safely on initialization.
+3. **`READY` State:**
+   - Display: Metadata card reveals artwork, track title, artist/uploader, duration, platform source.
+   - Single Track: Shows track details and format selection confirmation.
+   - Playlist: Reveals playlist banner, track list checklist with checkboxes (`☑ Track 01`, `☑ Track 02`), `[ Select All ]` button, selected track counter (`X tracks selected`), and `[ Download Playlist ]` CTA.
 
-### Task 1.5: Deep SSRF & Security Defense Engine (`app/core/security.py`)
-- **Files to Create:** `app/core/security.py`
-- **Actions:**
-  Implement the comprehensive multi-layered SSRF & URL defense:
-  1. **Protocol Sanitization:** Verify scheme is strictly `http` or `https`.
-  2. **IP Literal & Representation Rejection:** Reject raw IP inputs, octal formats (`0177.0.0.1`), hex (`0x7f000001`), dword (`2130706433`), and bracketed IPv6 literals (`[::1]`).
-  3. **Localhost & Internal Domain Blacklist:** Reject `localhost`, `*.local`, `*.internal`, `*.lan`, `*.home`, `*.corp`.
-  4. **Pre-Flight DNS Resolution:** Use `socket.getaddrinfo()` to resolve the hostname to all associated IPv4 and IPv6 addresses before connecting.
-  5. **Deep CIDR Blacklist Evaluation:** Check every resolved IP against:
-     - `127.0.0.0/8` (IPv4 Loopback)
-     - `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (IPv4 Private RFC1918)
-     - `169.254.0.0/16` (IPv4 Link-Local / Cloud Metadata)
-     - `100.64.0.0/10` (IPv4 Carrier-Grade NAT)
-     - `0.0.0.0/8`, `224.0.0.0/4`, `255.255.255.255/32` (Broadcast / Multicast)
-     - `::1/128` (IPv6 Loopback)
-     - `fc00::/7` (IPv6 Unique Local Address - ULA)
-     - `fe80::/10` (IPv6 Link-Local)
-     - `fec0::/10` (IPv6 Site-Local)
-     - `::ffff:0:0/96` (IPv4-mapped IPv6)
-     - `::/128`, `ff00::/8` (IPv6 Unspecified / Multicast)
-  6. **DNS Rebinding & TOCTOU Defense:** Provide IP-pinning utility so outbound requests connect directly to the pre-validated IP while sending the original hostname in HTTP `Host` and TLS SNI headers.
-  7. **Redirect Interceptor & Re-Validator:** Intercept all `3xx` redirects, inspect target `Location` URLs through steps 1–5, and abort if any hop resolves to an internal address (max 3 hops).
+4. **`DOWNLOADING` State:**
+   - Display: Real progress card showing track/playlist cover artwork, active track title, aggregate composite progress bar, percentage (`0–100%`), download speed (`MB/s`), estimated time remaining (`ETA`), status indicator, and prominent `[ Cancel ]` button.
+   - SSE Integration: Connects to `EventSource('/api/v1/jobs/{id}/events')`. Receives real-time telemetry from worker thread without polling. Fallbacks to short polling (2s) only if SSE drops.
 
-### Task 1.6: Dynamic Cross-Platform FFmpeg Locator (`app/engine/ffmpeg_locator.py`)
-- **Files to Create:** `app/engine/__init__.py`, `app/engine/ffmpeg_locator.py`
-- **Actions:**
-  - Build `get_ffmpeg_path()` using fallback resolution order:
-    1. Explicit path in `config.FFMPEG_PATH` or environment variable `FFMPEG_PATH`.
-    2. System PATH discovery via `shutil.which("ffmpeg")`.
-    3. Root folder fallback (`./ffmpeg.exe`) during migration.
-    4. Local `vendor/ffmpeg/` directory.
-  - Implement `verify_ffmpeg(path: str) -> tuple[bool, str]`:
-    - Executes `<path> -version` with a 3-second timeout.
-    - Parses version string (e.g. `ffmpeg version 6.1`).
-    - Raises descriptive `FFmpegNotFoundException` with setup guidance if missing.
+5. **`COMPLETED` State:**
+   - Display: Victory state card with cover artwork, track title, final file size, audio format tag, completed badge, primary `[ Download File ]` button (triggers browser file download), and `[ Download Another ]` secondary CTA.
 
-### Task 1.7: Database & Persistence Layer (`app/db/`)
-- **Files to Create:** `app/db/__init__.py`, `app/db/database.py`, `app/db/repository.py`
-- **Actions:**
-  - In `database.py`:
-    - Create SQLite connection context manager.
-    - Enable `PRAGMA journal_mode = WAL;` (Write-Ahead Logging for high-concurrency non-blocking reads).
-    - Enable `PRAGMA synchronous = NORMAL;`.
-    - Enable `PRAGMA foreign_keys = ON;`.
-    - Enable `PRAGMA busy_timeout = 5000;`.
-  - In `repository.py`:
-    - Implement `init_db()` to execute idempotent table creation:
-      - `jobs`: `id` (TEXT PK), `url` (TEXT), `title` (TEXT), `format` (TEXT), `quality` (TEXT), `status` (TEXT), `progress` (INTEGER), `speed` (REAL), `eta` (INTEGER), `file_path` (TEXT), `file_size` (INTEGER), `error_message` (TEXT), `created_at` (TIMESTAMP), `completed_at` (TIMESTAMP), `expires_at` (TIMESTAMP).
-      - `tracks`: `id` (INTEGER PK AUTOINCREMENT), `job_id` (TEXT FK), `track_index` (INTEGER), `track_title` (TEXT), `duration` (INTEGER), `status` (TEXT).
-      - Indexes on `jobs.status`, `jobs.created_at`, `jobs.expires_at`, and `tracks.job_id`.
-    - Implement Phase 1 sanity CRUD functions (`create_job`, `get_job`, `update_job_status`).
+6. **`FAILED` State:**
+   - Display: Clean, human-readable error notification card.
+   - Security Enforcement: Strips all internal Windows filesystem paths (`E:\...`), raw Python tracebacks, and database errors. Displays user-actionable instructions with a `[ Try Again ]` button.
 
-### Task 1.8: Automated Test Suite & Verification Gates
-- **Files to Create:** `tests/__init__.py`, `tests/conftest.py`, `tests/test_security.py`, `tests/test_ffmpeg_locator.py`, `tests/test_database.py`
-- **Actions:**
-  - `test_security.py`:
-    - Verify acceptance of legitimate YouTube and YouTube Music URLs.
-    - Verify rejection of IPv4 loopback (`127.0.0.1`, `127.0.0.2`, `127.255.255.254`).
-    - Verify rejection of IPv4 private ranges (`10.0.0.1`, `172.16.0.1`, `192.168.1.1`).
-    - Verify rejection of IPv4 link-local / cloud metadata (`169.254.169.254`).
-    - Verify rejection of Carrier-Grade NAT (`100.64.0.1`).
-    - Verify rejection of IPv6 loopback (`::1`, `[::1]`).
-    - Verify rejection of IPv6 ULA & link-local (`fc00::1`, `fe80::1`).
-    - Verify rejection of IPv4-mapped IPv6 (`::ffff:127.0.0.1`).
-    - Verify rejection of obfuscated IP literals (hex `0x7f000001`, octal `0177.0.0.1`, dword `2130706433`).
-    - Verify rejection of internal hostnames (`localhost`, `metadata.internal`, `router.local`).
-    - Verify rejection of redirect chains leading to private/loopback destinations.
-  - `test_ffmpeg_locator.py`:
-    - Verify resolution of the existing local `ffmpeg.exe`.
-    - Verify version detection and command execution.
-    - Verify proper exception handling when path is invalid.
-  - `test_database.py`:
-    - Verify database file creation and WAL journal mode enablement.
-    - Verify table and index creation.
-    - Verify transactional insertion, retrieval, and status updates for jobs and tracks.
-    - Verify foreign key cascade enforcement.
+7. **`CANCELLED` State:**
+   - Display: Cancellation notice card stating download was cancelled safely. `[ Start New Download ]` button resets interface to `IDLE`.
 
 ---
 
-## 5. Acceptance Criteria & Verification Gates
+## 5. Startup Animation Architecture
 
-Before Phase 1 is certified as complete, the following gates must pass:
+- **Visual Concept:**
+  1. Application launches with warm off-white / light neutral screen (`#F9F8F6`).
+  2. Subtle SVG sound-wave / acoustic cord lines gently expand and pulse behind the center viewport.
+  3. The **SONORA** wordmark reveals smoothly in editorial typography in the center.
+  4. Subtitle **MUSIC DOWNLOADER** fades in below the wordmark.
+  5. The acoustic waveform gently animates around the wordmark and transitions seamlessly into the landing page.
+- **Timing:** 0.8–1.2 seconds total duration. Fast, subtle, elegant.
+- **Accessibility:** Fully supports `@media (prefers-reduced-motion: reduce)`. When reduced motion is preferred, the animation bypasses keyframes and performs an instant/minimal fade reveal.
+
+---
+
+## 6. Responsive Mobile & Desktop Layout
+
+- **Desktop (1024px+):** Generous breathing room, side-by-side hero text and downloader visual card, centered max-width (1200px) grid layouts.
+- **Tablet (768px - 1023px):** Stacked hero section, fluid input controls, full-width action cards.
+- **Mobile (375px - 767px):** Mobile-first single-column layout, touch-friendly buttons (minimum 44x44px touch targets), horizontal scroll prevention, collapsible slide-out navigation drawer.
+
+---
+
+## 7. 10-Milestone Execution Breakdown
+
+### MILESTONE 1: Frontend Foundation + SONORA Design System
+- Create `app/main.py`, `app/api/v1/endpoints.py`, `app/static/index.html`, `app/static/css/styles.css`.
+- Define CSS custom properties for light/dark themes, Swiss typography scale, border styles, and layout grid.
+- **Verification:** Start FastAPI server via Uvicorn and verify root `/` serves static structure.
+
+### MILESTONE 2: SONORA Startup Animation
+- Build `#startup-overlay` HTML structure, SVG acoustic cord waveform visuals, CSS keyframes, and reduced-motion media query.
+- **Verification:** Test animation lifecycle in browser; verify reduced-motion bypass.
+
+### MILESTONE 3: Complete Landing Page
+- Build complete SONORA landing page: Navigation bar, Hero section, Platform badges, Features section, Supported Sites grid, FAQ accordion, Footer, Light/Dark theme switcher with `localStorage` persistence.
+- **Verification:** Visual review in both light and dark modes.
+
+### MILESTONE 4: Metadata Inspection + Downloader Interaction
+- Wire `POST /api/v1/metadata` endpoint.
+- Build URL input bar interaction in `app.js` (`IDLE` -> `INSPECTING` -> `READY`).
+- Format selector UI with quality labels and acoustic tooltips.
+- **Verification:** Test metadata extraction for single YouTube URLs and playlists.
+
+### MILESTONE 5: Real Download Integration + Progress
+- Wire `POST /api/v1/jobs` submission, `GET /api/v1/jobs/{id}`, and `GET /api/v1/jobs/{id}/events` SSE stream.
+- Connect `DOWNLOADING` state to live `EventSource` updates (progress %, speed, ETA, status).
+- **Verification:** Real single-track download with live progress stream.
+
+### MILESTONE 6: Playlist + Queue Experience
+- Add playlist track checklist, "Select All" toggle, selected count badge in `READY` view.
+- Pass `selected_indices` to `/api/v1/jobs`.
+- Render aggregate composite progress bar `(completed * 100 + current) / total`.
+- **Verification:** Real multi-track playlist download & ZIP archive creation.
+
+### MILESTONE 7: Completion / Failure / Cancellation Flows
+- Wire `GET /api/v1/downloads/{id}/file` delivery endpoint with safe attachment headers.
+- Wire `POST /api/v1/jobs/{id}/cancel` endpoint and UI button.
+- Build `COMPLETED`, `FAILED`, and `CANCELLED` UI state cards with error sanitization.
+- **Verification:** File download trigger, job cancellation test, sanitized error handling test.
+
+### MILESTONE 8: Responsive Mobile + Desktop Polish
+- Optimize layout for 375px mobile viewports, touch targets, and desktop displays.
+- Eliminate horizontal scrolling and overflow issues.
+- **Verification:** Viewport responsiveness testing across 375px, 768px, and 1280px.
+
+### MILESTONE 9: Accessibility + Performance + Browser QA
+- Ensure keyboard focus rings (`:focus-visible`), ARIA attributes, semantic HTML tags.
+- Perform end-to-end browser automation testing (Playwright / Chrome DevTools).
+- **Verification:** 100% test pass rate in automated test suite and clean browser run.
+
+### MILESTONE 10: Final Production Verification + Release Documentation
+- Run full test suite (`pytest`) and Ruff linter.
+- Update project memory files (`PLAN.md`, `STATE.md`, `TASKS.md`, `CHANGELOG.md`, `REPORT.md`).
+- Document final release verification.
+- **Verification:** All existing 77 tests + new API tests pass; zero linter errors.
+
+---
+
+## 8. Acceptance Criteria & Quality Gates
 
 | Gate ID | Verification Item | Pass Criteria |
 | :--- | :--- | :--- |
-| **GATE-1** | **Preservation of Existing Code** | `app.py`, `music_fixer.py`, `templates/index.html`, and `ffmpeg.exe` remain byte-for-byte identical to their pre-Phase 1 state. |
-| **GATE-2** | **SSRF Defense Verification** | All test cases in `test_security.py` pass; zero false-negatives on loopback, private ranges, link-local, IPv6, obfuscated IP formats, and redirect traps. |
-| **GATE-3** | **FFmpeg Resolution** | `get_ffmpeg_path()` discovers and validates the local FFmpeg binary, returning version ≥ 6.0 without hardcoded absolute paths. |
-| **GATE-4** | **SQLite WAL Initialization** | `init_db()` executes without errors; `PRAGMA journal_mode` returns `wal`; tables `jobs` and `tracks` exist with indexes. |
-| **GATE-5** | **Configurable Concurrency** | `Settings.MAX_CONCURRENT_WORKERS` defaults to `4` and correctly reads environment overrides. |
-| **GATE-6** | **Full Automated Test Pass** | Running `pytest tests/` produces 100% passing tests with zero errors or unhandled warnings. |
+| **GATE-1** | **Branding Consistency** | Product name "SONORA" is displayed consistently across title, branding, startup animation, hero, and footer. Zero "Auralis/TuneGrab" user-facing leakage. |
+| **GATE-2** | **Startup Animation** | Plays smooth acoustic waveform animation in ~0.8–1.2s; respects `prefers-reduced-motion`. |
+| **GATE-3** | **Real Metadata Inspection** | `POST /api/v1/metadata` validates URL via SSRF guard and returns title, uploader, thumbnail, duration, track list. |
+| **GATE-4** | **Real Single & Playlist Downloads** | End-to-end execution of single-track and multi-track playlist downloads with real yt-dlp / FFmpeg processing. |
+| **GATE-5** | **Real-Time SSE Progress** | `GET /api/v1/jobs/{id}/events` streams real-time progress %, speed, ETA, and current track title to browser. |
+| **GATE-6** | **Cancellation Safety** | Clicking cancel aborts worker download and transitions job state to `CANCELLED` without Windows file lock errors (`[WinError 32]`). |
+| **GATE-7** | **File Delivery** | `GET /api/v1/downloads/{id}/file` serves completed audio file or zip archive with correct `Content-Disposition`. |
+| **GATE-8** | **Preservation Guarantee** | All 4 legacy files (`app.py`, `music_fixer.py`, `templates/index.html`, `ffmpeg.exe`) remain untouched; `test_preservation.py` passes 100%. |
+| **GATE-9** | **Full Automated Test Pass** | All 77 baseline unit/integration tests + new API tests pass cleanly in `pytest`. Ruff linter reports 0 errors. |
 
 ---
 
-## 6. Rollback Strategy
+## 9. Git Checkpoint Discipline
 
-Because Phase 1 does **not modify any existing files**, rollback is straightforward, instantaneous, and non-destructive:
-
-```powershell
-# Rollback Procedure (if ever required)
-Remove-Item -Recurse -Force "app\"
-Remove-Item -Recurse -Force "tests\"
-Remove-Item -Force ".gitignore", "pyproject.toml", "requirements.txt", "requirements-dev.txt"
-if (Test-Path "data\auralis.db") { Remove-Item -Force "data\auralis.db*" }
-```
-
-Following this procedure restores the workspace to its exact starting state without loss of data or functionality.
-
----
-
-*Phase 1 Implementation Plan certified by Antigravity Engineering Architecture Team. Awaiting user approval before execution.*
+At each completed milestone:
+1. Run `pytest` and `ruff check .`.
+2. Perform browser verification.
+3. Review `git status` and `git diff`.
+4. Report milestone results to user.
+5. Ask: *"Milestone X completed and verified. Git changes are ready. Do you want me to commit and push this milestone to GitHub?"*
+6. **WAIT** for explicit approval before creating any git commit or push.
