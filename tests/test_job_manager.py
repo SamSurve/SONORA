@@ -223,11 +223,17 @@ class TestCancellationAndRetries:
         with patch("socket.getaddrinfo", return_value=mock_addr):
             job_id = test_job_mgr.submit_job("https://music.youtube.com/watch?v=fail_me")
 
-        context = test_job_mgr._active_jobs.get(job_id)
-        if context and context.future:
-            context.future.result(timeout=5)
+        job_record = None
+        for _ in range(50):
+            job_record = test_job_mgr.get_job_info(job_id)
+            if job_record and job_record["status"] in (
+                JobStatus.FAILED.value,
+                JobStatus.COMPLETED.value,
+            ):
+                break
+            time.sleep(0.05)
 
-        job_record = test_job_mgr.get_job_info(job_id)
+        assert job_record is not None
         assert job_record["status"] == JobStatus.FAILED.value
         assert "Persistent upstream failure" in job_record["error_message"]
 

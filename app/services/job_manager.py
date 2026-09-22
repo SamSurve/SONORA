@@ -651,7 +651,7 @@ class JobManager:
             active_contexts = list(self._active_jobs.values())
         for ctx in active_contexts:
             ctx.cancel_event.set()
-        self._executor.shutdown(wait=wait)
+        self._executor.shutdown(wait=wait, cancel_futures=True)
 
 
 # Singleton instance for application-wide service usage
