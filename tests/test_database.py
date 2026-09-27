@@ -158,3 +158,66 @@ class TestRepositoryOperations:
         test_db_conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         orphaned_tracks = get_tracks_for_job(test_db_conn, job_id)
         assert len(orphaned_tracks) == 0, "Tracks should be cascaded on parent job deletion"
+
+    def test_tracks_unique_constraint_and_upsert(self, test_db_conn: sqlite3.Connection) -> None:
+        """Verifies HIGH-05: tracks table enforces uniqueness and supports idempotent upsert."""
+        job_id = "playlist-uuid-unique"
+        create_job(
+            test_db_conn,
+            job_id=job_id,
+            url="https://music.youtube.com/playlist?list=PL456",
+            target_format="mp3_320",
+            quality="320",
+            is_playlist=True,
+        )
+
+        # First insertion
+        add_track_to_job(test_db_conn, job_id, 1, "Original Title", duration=120)
+        tracks = get_tracks_for_job(test_db_conn, job_id)
+        assert len(tracks) == 1
+        assert tracks[0]["track_title"] == "Original Title"
+        assert tracks[0]["duration"] == 120
+
+        # Duplicate insertion on retry should update, not create duplicate row
+        add_track_to_job(test_db_conn, job_id, 1, "Updated Title", duration=130)
+        tracks = get_tracks_for_job(test_db_conn, job_id)
+        assert len(tracks) == 1, "Duplicate track index should not create additional row"
+        assert tracks[0]["track_title"] == "Updated Title"
+        assert tracks[0]["duration"] == 130
+
+    def test_schema_init_db_runs_only_once_per_database_path(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Verifies CRIT-01: create_connection runs init_db strictly once per DB path."""
+        from unittest.mock import MagicMock
+
+        from app.db import repository
+        from app.db.database import (
+            _INITIALIZED_DATABASES,
+            create_connection,
+            ensure_db_initialized,
+            reset_db_initialization_cache,
+        )
+
+        test_db = tmp_path / "test_one_time_init.db"
+        reset_db_initialization_cache()
+
+        mock_init = MagicMock(wraps=repository.init_db)
+        monkeypatch.setattr(repository, "init_db", mock_init)
+
+        # First connection should trigger init_db once
+        conn1 = create_connection(test_db)
+        assert mock_init.call_count == 1
+        assert str(test_db.resolve()) in _INITIALIZED_DATABASES
+        conn1.close()
+
+        # Subsequent connections to the same database must NOT call init_db again
+        conn2 = create_connection(test_db)
+        conn3 = create_connection(test_db)
+        assert mock_init.call_count == 1
+        conn2.close()
+        conn3.close()
+
+        # Calling ensure_db_initialized on already initialized DB should also not re-run init_db
+        ensure_db_initialized(test_db)
+        assert mock_init.call_count == 1

@@ -11,12 +11,18 @@ from pathlib import Path
 FORBIDDEN_CHARS_REGEX = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 COLLAPSE_SPACES_REGEX = re.compile(r"\s+")
 
+# Windows reserved device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) (HIGH-02)
+WINDOWS_RESERVED_NAMES_REGEX = re.compile(
+    r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$",
+    re.IGNORECASE,
+)
+
 
 def sanitize_filename(name: str, max_length: int = 120) -> str:
     """Sanitizes a string for safe usage as a filename.
 
     Strips forbidden characters, collapses whitespace, trims trailing periods and spaces,
-    and caps total character length.
+    prefixes Windows reserved device names, and caps total character length.
 
     Args:
         name: Raw string (e.g. video title).
@@ -40,9 +46,15 @@ def sanitize_filename(name: str, max_length: int = 120) -> str:
     if not cleaned:
         cleaned = "unnamed_track"
 
+    # Prefix Windows reserved device names (HIGH-02)
+    if WINDOWS_RESERVED_NAMES_REGEX.match(cleaned):
+        cleaned = f"_{cleaned}"
+
     # Truncate to maximum length safely
     if len(cleaned) > max_length:
         cleaned = cleaned[:max_length].rstrip(". ")
+        if WINDOWS_RESERVED_NAMES_REGEX.match(cleaned):
+            cleaned = f"_{cleaned}"
 
     return cleaned
 
@@ -57,8 +69,15 @@ def format_track_filename(title: str, extension: str, track_index: int | None = 
     clean_ext = extension.lstrip(".").lower()
 
     if track_index is not None and track_index > 0:
-        return f"{track_index:03d} - {safe_title}.{clean_ext}"
-    return f"{safe_title}.{clean_ext}"
+        filename = f"{track_index:03d} - {safe_title}.{clean_ext}"
+    else:
+        filename = f"{safe_title}.{clean_ext}"
+
+    # Double check final filename against Windows reserved names (HIGH-02)
+    if WINDOWS_RESERVED_NAMES_REGEX.match(filename):
+        filename = f"_{filename}"
+
+    return filename
 
 
 def safe_path_join(base_dir: Path, untrusted_filename: str) -> Path:
@@ -77,6 +96,9 @@ def safe_path_join(base_dir: Path, untrusted_filename: str) -> Path:
     safe_name = Path(untrusted_filename).name  # Strips any leading directory components
     if not safe_name or safe_name in (".", ".."):
         raise ValueError(f"Invalid filename: '{untrusted_filename}'")
+
+    if WINDOWS_RESERVED_NAMES_REGEX.match(safe_name):
+        safe_name = f"_{safe_name}"
 
     target_path = (base_dir / safe_name).resolve()
     base_resolved = base_dir.resolve()

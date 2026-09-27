@@ -180,3 +180,34 @@ class TestSonoraFrontendAndAnimation:
         assert "new AbortController()" in js
         assert "controller.abort('timeout')" in js
         assert "15000" in js
+
+    def test_sse_polling_fallback_bounded_retries(self) -> None:
+        """Verifies CRIT-02: startPollingFallback has bounded retry limits."""
+        response = client.get("/static/js/app.js")
+        assert response.status_code == 200
+        js = response.text
+        assert "MAX_POLL_FAILURES" in js
+        assert "MAX_POLL_404_RETRIES" in js
+        assert "MAX_POLL_ATTEMPTS" in js
+        assert "consecutive404s >= MAX_POLL_404_RETRIES" in js
+        assert "consecutiveErrors >= MAX_POLL_FAILURES" in js
+        assert "pollAttempts > MAX_POLL_ATTEMPTS" in js
+
+    def test_playlist_checklist_css_constraints(self) -> None:
+        """Verifies styles.css enforces max-height and scrolling on playlist checklist (HIGH-04)."""
+        response = client.get("/static/css/styles.css")
+        assert response.status_code == 200
+        css = response.text
+        assert ".playlist-checklist-container {" in css
+        assert ".playlist-items-list {" in css
+        assert "max-height: 280px;" in css
+        assert "overflow-y: auto;" in css
+
+    def test_empty_playlist_selection_ui_behavior(self) -> None:
+        """Verifies app.js disables download when 0 playlist items are selected (HIGH-03)."""
+        response = client.get("/static/js/app.js")
+        assert response.status_code == 200
+        js = response.text
+        assert "elements.startDownloadBtn.disabled = true;" in js
+        assert "Select at least one track to download" in js
+        assert "Please select at least one track from the playlist to download." in js

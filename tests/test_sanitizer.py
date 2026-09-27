@@ -44,6 +44,27 @@ class TestFilenameSanitization:
         assert formatted == "005 - Solaris Chill.flac"
 
 
+    def test_windows_reserved_device_names_prefixed(self) -> None:
+        """Verifies Windows reserved device names are safely prefixed with an underscore."""
+        reserved = ["CON", "PRN", "AUX", "NUL", "COM1", "COM9", "LPT1", "LPT9"]
+        for name in reserved:
+            assert sanitize_filename(name) == f"_{name}"
+            assert sanitize_filename(name.lower()) == f"_{name.lower()}"
+            assert sanitize_filename(f"{name}.mp3") == f"_{name}.mp3"
+
+        # Case-insensitive checks
+        assert sanitize_filename("aux") == "_aux"
+        assert sanitize_filename("nul") == "_nul"
+
+    def test_format_track_filename_windows_reserved(self) -> None:
+        """Verifies track formatting safely handles reserved names."""
+        formatted = format_track_filename("CON", "mp3")
+        assert formatted == "_CON.mp3"
+
+        formatted_playlist = format_track_filename("CON", "mp3", track_index=1)
+        assert formatted_playlist == "001 - _CON.mp3"
+
+
 class TestPathTraversalDefense:
     """Tests for safe_path_join preventing directory escape."""
 
@@ -68,3 +89,9 @@ class TestPathTraversalDefense:
 
         with pytest.raises(ValueError, match="Invalid filename"):
             safe_path_join(tmp_path, "..")
+
+    def test_safe_path_join_handles_windows_reserved_names(self, tmp_path: Path) -> None:
+        """Verifies safe_path_join prefixes Windows reserved names to avoid Win32 collisions."""
+        joined = safe_path_join(tmp_path, "CON.mp3")
+        assert joined.name == "_CON.mp3"
+        assert joined.parent == tmp_path.resolve()

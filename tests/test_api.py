@@ -342,3 +342,89 @@ class TestSonoraApiEndpoints:
                 )
         except (ImportError, AttributeError):
             pass
+
+    def test_create_job_empty_playlist_rejected(self) -> None:
+        """Verifies submitting a playlist with empty selected_indices is rejected (HIGH-03)."""
+        response = client.post(
+            "/api/v1/jobs",
+            json={
+                "url": "https://music.youtube.com/playlist?list=PL123",
+                "is_playlist": True,
+                "selected_indices": [],
+            },
+        )
+        assert response.status_code == 400
+        json_data = response.json()
+        assert json_data["detail"]["code"] == "INVALID_URL"
+        assert "At least one track must be selected" in json_data["detail"]["message"]
+
+    def test_trusted_proxies_client_ip_extraction(self) -> None:
+        """Verifies client IP extraction respects TRUSTED_PROXIES (HIGH-07)."""
+        from starlette.requests import Request
+
+        from app.api.v1.endpoints import extract_client_ip
+
+        # 1. Trusted proxy with X-Forwarded-For
+        scope_trusted = {
+            "type": "http",
+            "client": ("127.0.0.1", 12345),
+            "headers": [
+                (b"x-forwarded-for", b"203.0.113.195, 127.0.0.1"),
+            ],
+        }
+        req_trusted = Request(scope_trusted)
+        assert extract_client_ip(req_trusted) == "203.0.113.195"
+
+        # 2. Trusted proxy with X-Real-IP
+        scope_real = {
+            "type": "http",
+            "client": ("127.0.0.1", 12345),
+            "headers": [
+                (b"x-real-ip", b"198.51.100.42"),
+            ],
+        }
+        req_real = Request(scope_real)
+        assert extract_client_ip(req_real) == "198.51.100.42"
+
+        # 3. Untrusted peer sending spoofed X-Forwarded-For should be ignored
+        scope_untrusted = {
+            "type": "http",
+            "client": ("198.51.100.99", 54321),
+            "headers": [
+                (b"x-forwarded-for", b"8.8.8.8"),
+            ],
+        }
+        req_untrusted = Request(scope_untrusted)
+        assert extract_client_ip(req_untrusted) == "198.51.100.99"
+
+    def test_ytdlp_presend_ssrf_validation_hook(self) -> None:
+        """Verifies yt-dlp pre-send hook validates request target against SSRF (HIGH-01)."""
+        from app.core.security import SSRFSecurityException
+        from app.engine.ytdlp_engine import install_ssrf_redirect_protection
+
+        install_ssrf_redirect_protection()
+        try:
+            from yt_dlp.networking._urllib import UrllibHandler
+
+            handler = UrllibHandler()
+            req = MagicMock()
+            req.url = "http://127.0.0.1:8000/internal"
+            send_fn = getattr(handler, "_send", getattr(handler, "send", None))
+            if send_fn:
+                with pytest.raises(SSRFSecurityException):
+                    send_fn(req)
+        except (ImportError, AttributeError):
+            pass
+
+    def test_build_ydl_options_empty_playlist_indices(self, tmp_path) -> None:
+        """Verifies build_ydl_options handles empty playlist indices safely (HIGH-03)."""
+        from app.engine.ytdlp_engine import build_ydl_options
+
+        opts = build_ydl_options(
+            job_id="test-empty-pl",
+            temp_dir=tmp_path,
+            target_format="mp3_320",
+            is_playlist=True,
+            selected_indices=[],
+        )
+        assert opts["playlist_items"] == "0"

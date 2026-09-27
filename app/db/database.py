@@ -5,17 +5,24 @@ and thread-safe connection handling.
 """
 
 import sqlite3
+import threading
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
 from app.core.config import settings
+from app.db import repository
+
+# Thread-safe registry of database paths whose schemas have been initialized
+_INITIALIZED_DATABASES: set[str] = set()
+_init_lock = threading.Lock()
 
 
 def create_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     """Creates a configured SQLite connection with WAL mode and foreign keys enabled.
 
-    Auto-initializes table schema and indexes on clean database targets.
+    Auto-initializes table schema and indexes on clean database targets strictly once
+    per database path.
     """
     target_path = Path(db_path or settings.DB_PATH)
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -35,12 +42,32 @@ def create_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA busy_timeout = 5000;")
 
-    # Idempotently ensure database schema exists
-    from app.db.repository import init_db
-
-    init_db(conn)
+    # Idempotently ensure database schema exists strictly on first access
+    canonical_path = str(target_path.resolve())
+    if canonical_path not in _INITIALIZED_DATABASES:
+        with _init_lock:
+            if canonical_path not in _INITIALIZED_DATABASES:
+                repository.init_db(conn)
+                _INITIALIZED_DATABASES.add(canonical_path)
 
     return conn
+
+
+def ensure_db_initialized(db_path: Path | str | None = None) -> None:
+    """Explicitly initializes the database schema upfront during application boot."""
+    target_path = Path(db_path or settings.DB_PATH)
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    canonical_path = str(target_path.resolve())
+    with _init_lock:
+        if canonical_path not in _INITIALIZED_DATABASES:
+            conn = create_connection(target_path)
+            conn.close()
+
+
+def reset_db_initialization_cache() -> None:
+    """Clears the initialized database tracking cache (used for test isolation)."""
+    with _init_lock:
+        _INITIALIZED_DATABASES.clear()
 
 
 @contextmanager

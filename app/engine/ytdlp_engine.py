@@ -15,21 +15,22 @@ import yt_dlp
 
 from app.core.config import settings
 from app.core.constants import AudioFormat
-from app.core.security import validate_redirect
+from app.core.security import validate_redirect, validate_url
 from app.engine.ffmpeg_locator import get_ffmpeg_path
 
 logger = logging.getLogger(__name__)
 
 
 def install_ssrf_redirect_protection() -> None:
-    """Hooks into yt-dlp's internal redirect handler to validate targets against SSRF rules.
+    """Hooks into yt-dlp's networking layer to validate targets against SSRF rules.
 
-    Validates HTTP/HTTPS redirects initiated by yt-dlp's urllib networking layer against
-    private IP ranges and dangerous schemes.
+    Validates HTTP/HTTPS redirects and outgoing HTTP requests initiated by yt-dlp's urllib
+    networking layer against private IP ranges and dangerous schemes.
 
-    Note on DNS Rebinding (TOCTOU): Application-level redirect inspection resolves hostnames
-    to evaluate private IP ranges. Full immunity against DNS rebinding requires socket-level
-    IP pinning, but this hook prevents standard redirect hops to restricted hosts or IP ranges.
+    Note on DNS Rebinding (TOCTOU / HIGH-01): While socket-level IP pinning requires custom
+    low-level transport factories, pre-send re-validation and redirect inspection strictly
+    enforce that all resolved IP addresses belong to public, non-reserved ranges at the time
+    of each outbound network request.
     """
     try:
         from yt_dlp.networking._urllib import RedirectHandler as YtdlpRedirectHandler
@@ -45,6 +46,26 @@ def install_ssrf_redirect_protection() -> None:
                 )
 
             YtdlpRedirectHandler.redirect_request = _safe_ytdlp_redirect
+    except (ImportError, AttributeError):
+        pass
+
+    try:
+        from yt_dlp.networking._urllib import UrllibHandler
+
+        send_attr = "_send" if hasattr(UrllibHandler, "_send") else "send"
+        if hasattr(UrllibHandler, send_attr) and not hasattr(UrllibHandler, "_orig_send"):
+            orig_send = getattr(UrllibHandler, send_attr)
+            UrllibHandler._orig_send = orig_send
+
+            def _safe_urllib_send(self, request, *args, **kwargs):
+                req_url = getattr(request, "url", None)
+                if not req_url and hasattr(request, "get_full_url"):
+                    req_url = request.get_full_url()
+                if req_url and isinstance(req_url, str):
+                    validate_url(req_url, resolve_dns=True)
+                return orig_send(self, request, *args, **kwargs)
+
+            setattr(UrllibHandler, send_attr, _safe_urllib_send)
     except (ImportError, AttributeError):
         pass
 
@@ -229,8 +250,11 @@ def build_ydl_options(
         "postprocessors": postprocessors,
     }
 
-    if is_playlist and selected_indices:
-        opts["playlist_items"] = ",".join(str(i) for i in selected_indices)
+    if is_playlist and selected_indices is not None:
+        if len(selected_indices) == 0:
+            opts["playlist_items"] = "0"
+        else:
+            opts["playlist_items"] = ",".join(str(i) for i in selected_indices)
 
     return opts
 

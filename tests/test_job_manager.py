@@ -184,10 +184,10 @@ class TestCancellationAndRetries:
         assert "Job was cancelled by user." in (job_record["error_message"] or "")
 
     @patch("app.services.job_manager.execute_download")
-    @patch("app.services.job_manager.time.sleep", return_value=None)  # Instant backoff in test
     def test_retry_on_transient_error(
-        self, mock_sleep: MagicMock, mock_exec: MagicMock, test_job_mgr: JobManager
+        self, mock_exec: MagicMock, test_job_mgr: JobManager, monkeypatch
     ) -> None:
+        monkeypatch.setattr(settings, "RETRY_BACKOFF_BASE_SECONDS", 0.001)
         attempts = [0]
 
         def flaky_download(job_id, url, temp_dir, **kwargs):
@@ -213,10 +213,10 @@ class TestCancellationAndRetries:
         assert job_record["status"] == JobStatus.COMPLETED.value
 
     @patch("app.services.job_manager.execute_download")
-    @patch("app.services.job_manager.time.sleep", return_value=None)
     def test_exhausted_retries_marks_failed(
-        self, mock_sleep: MagicMock, mock_exec: MagicMock, test_job_mgr: JobManager
+        self, mock_exec: MagicMock, test_job_mgr: JobManager, monkeypatch
     ) -> None:
+        monkeypatch.setattr(settings, "RETRY_BACKOFF_BASE_SECONDS", 0.001)
         mock_exec.side_effect = RuntimeError("Persistent upstream failure")
 
         mock_addr = [(2, 1, 6, "", ("142.250.190.46", 443))]
@@ -236,6 +236,34 @@ class TestCancellationAndRetries:
         assert job_record is not None
         assert job_record["status"] == JobStatus.FAILED.value
         assert "Persistent upstream failure" in job_record["error_message"]
+
+    @patch("app.services.job_manager.execute_download")
+    def test_cancellation_during_retry_backoff(
+        self, mock_exec: MagicMock, test_job_mgr: JobManager, monkeypatch
+    ) -> None:
+        """Verifies HIGH-06: job cancellation during retry backoff aborts immediately."""
+        monkeypatch.setattr(settings, "RETRY_BACKOFF_BASE_SECONDS", 2.0)
+        mock_exec.side_effect = ConnectionResetError("Transient network failure")
+
+        mock_addr = [(2, 1, 6, "", ("142.250.190.46", 443))]
+        with patch("socket.getaddrinfo", return_value=mock_addr):
+            job_id = test_job_mgr.submit_job("https://music.youtube.com/watch?v=retry_cancel")
+
+        # Wait briefly for attempt 1 to fail and enter retry backoff wait
+        time.sleep(0.15)
+
+        # Cancel while it is waiting in 2.0s backoff
+        test_job_mgr.cancel_job(job_id)
+
+        # Wait for worker thread to exit cooperatively
+        context = test_job_mgr._active_jobs.get(job_id)
+        if context and context.future:
+            context.future.result(timeout=1.0)
+
+        job_record = test_job_mgr.get_job_info(job_id)
+        assert job_record is not None
+        assert job_record["status"] == JobStatus.CANCELLED.value
+        assert "Job was cancelled by user." in (job_record["error_message"] or "")
 
 
 class TestSecurityAndConcurrencyEnforcement:

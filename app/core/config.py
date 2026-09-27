@@ -36,6 +36,7 @@ try:
         DISK_FREE_THRESHOLD_MB: int = 2048
         JANITOR_SWEEP_INTERVAL_SECONDS: int = 300
         SOCKET_TIMEOUT: int = 20
+        RETRY_BACKOFF_BASE_SECONDS: float = 1.0
 
         # Security & Abuse Mitigation
         MAX_PLAYLIST_ITEMS: int = 100
@@ -58,6 +59,22 @@ try:
             if isinstance(v, list | tuple):
                 return [str(orig).strip() for orig in v if str(orig).strip()]
             return []
+
+        # Reverse Proxy & Client IP Trust (HIGH-07)
+        TRUSTED_PROXIES: list[str] = [
+            "127.0.0.1",
+            "::1",
+        ]
+
+        @field_validator("TRUSTED_PROXIES", mode="before")
+        @classmethod
+        def parse_trusted_proxies(cls, v: object) -> list[str]:
+            """Parse comma-separated string or list into list of trusted proxy IPs."""
+            if isinstance(v, str):
+                return [ip.strip() for ip in v.split(",") if ip.strip()]
+            if isinstance(v, list | tuple):
+                return [str(ip).strip() for ip in v if str(ip).strip()]
+            return ["127.0.0.1", "::1"]
 
         # Database
         DB_PATH: Path = Path("data/auralis.db")

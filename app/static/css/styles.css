@@ -632,6 +632,70 @@ body {
   color: var(--text-secondary);
 }
 
+/* Playlist Checklist Container (HIGH-04) */
+.playlist-checklist-container {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.checklist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.playlist-items-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-right: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
+}
+
+.playlist-items-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.playlist-items-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.playlist-items-list::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: var(--radius-full);
+}
+
+.playlist-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.playlist-item-row:hover {
+  background-color: var(--bg-surface-elevated);
+}
+
+.playlist-item-row input[type="checkbox"] {
+  accent-color: var(--accent-violet);
+  cursor: pointer;
+}
+
 .action-buttons {
   display: flex;
   gap: 0.75rem;

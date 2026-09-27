@@ -40,6 +40,27 @@ def get_job_manager() -> JobManager:
     return job_manager
 
 
+def extract_client_ip(request: Request) -> str:
+    """Extracts client IP address respecting trusted reverse proxies (HIGH-07).
+
+    If connecting host is listed in settings.TRUSTED_PROXIES, inspects the
+    X-Forwarded-For or X-Real-IP headers to determine the originating client IP.
+    Otherwise, returns the direct socket peer address.
+    """
+    peer_ip = request.client.host if request.client else "unknown"
+    if peer_ip in settings.TRUSTED_PROXIES:
+        forwarded_for = request.headers.get("x-forwarded-for")
+        if forwarded_for:
+            client_candidate = forwarded_for.split(",")[0].strip()
+            if client_candidate:
+                return client_candidate
+        x_real_ip = request.headers.get("x-real-ip")
+        if x_real_ip and x_real_ip.strip():
+            return x_real_ip.strip()
+
+    return peer_ip
+
+
 class MetadataRequest(BaseModel):
     """Payload for pre-download metadata inspection."""
 
@@ -110,7 +131,21 @@ async def inspect_metadata(payload: MetadataRequest) -> dict[str, Any]:
 @router.post("/jobs", status_code=status.HTTP_201_CREATED)
 async def create_download_job(payload: JobSubmitRequest, request: Request) -> dict[str, Any]:
     """Submits a new single-track or playlist download job."""
-    client_ip = request.client.host if request.client else "unknown"
+    # HIGH-03: Reject empty playlist selections
+    if (
+        payload.is_playlist
+        and payload.selected_indices is not None
+        and len(payload.selected_indices) == 0
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": ErrorCode.INVALID_URL.value,
+                "message": "At least one track must be selected for playlist downloads.",
+            },
+        )
+
+    client_ip = extract_client_ip(request)
     manager = get_job_manager()
 
     try:

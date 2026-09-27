@@ -35,13 +35,15 @@ CREATE TABLE IF NOT EXISTS tracks (
     track_title TEXT NOT NULL,
     duration INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'pending',
-    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+    FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+    UNIQUE(job_id, track_index)
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 CREATE INDEX IF NOT EXISTS idx_jobs_expires_at ON jobs(expires_at);
 CREATE INDEX IF NOT EXISTS idx_tracks_job_id ON tracks(job_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_job_track ON tracks(job_id, track_index);
 """
 
 
@@ -54,6 +56,11 @@ def init_db(conn: sqlite3.Connection) -> None:
     columns = {row[1] for row in cursor.fetchall()}
     if "is_playlist" not in columns:
         conn.execute("ALTER TABLE jobs ADD COLUMN is_playlist INTEGER NOT NULL DEFAULT 0;")
+
+    # Ensure unique index exists on tracks(job_id, track_index) for legacy databases (HIGH-05)
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_job_track ON tracks(job_id, track_index);"
+    )
 
 
 def create_job(
@@ -141,10 +148,14 @@ def add_track_to_job(
     track_title: str,
     duration: int = 0,
 ) -> int:
-    """Inserts an individual track entry linked to a playlist job."""
+    """Inserts or updates an individual track entry linked to a playlist job (HIGH-05)."""
     query = """
     INSERT INTO tracks (job_id, track_index, track_title, duration, status)
     VALUES (?, ?, ?, ?, 'pending')
+    ON CONFLICT(job_id, track_index) DO UPDATE SET
+        track_title = excluded.track_title,
+        duration = excluded.duration,
+        status = 'pending'
     """
     cursor = conn.execute(query, (job_id, track_index, track_title, duration))
     return cursor.lastrowid or 0

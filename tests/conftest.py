@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from app.core.config import settings
-from app.db.database import create_connection
+from app.db.database import create_connection, reset_db_initialization_cache
 from app.db.repository import init_db
 from app.services.job_manager import job_manager
 
@@ -29,6 +29,7 @@ def isolate_test_environment(
 
     yield
 
+    reset_db_initialization_cache()
     with job_manager._registry_lock:
         active_contexts = list(job_manager._active_jobs.values())
         job_manager._active_jobs.clear()

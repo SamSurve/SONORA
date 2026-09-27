@@ -18,6 +18,7 @@ from app.api.v1.endpoints import get_job_manager
 from app.api.v1.endpoints import router as api_v1_router
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.db.database import ensure_db_initialized
 from app.engine.janitor import JanitorDaemon
 
 # Initialize structured logging
@@ -33,6 +34,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Ensure storage directories exist
     settings.TEMP_DIR.mkdir(parents=True, exist_ok=True)
     settings.COMPLETED_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Initialize database schema upfront before any background worker or request
+    ensure_db_initialized(settings.DB_PATH)
 
     # Initialize JobManager singleton (runs startup orphan reconciliation)
     get_job_manager()

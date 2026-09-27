@@ -348,7 +348,7 @@ class JobManager:
     ) -> None:
         """Worker wrapper implementing bounded retries with exponential backoff."""
         max_retries = 3
-        backoff_base_sec = 1.0
+        backoff_base_sec = settings.RETRY_BACKOFF_BASE_SECONDS
 
         for attempt in range(1, max_retries + 1):
             if context.cancel_event.is_set():
@@ -411,9 +411,14 @@ class JobManager:
                     )
                     return
 
-                # Bounded backoff
+                # Bounded backoff with immediate cancellation interruption (HIGH-06)
                 sleep_duration = backoff_base_sec * (2 ** (attempt - 1))
-                time.sleep(sleep_duration)
+                if context.cancel_event.wait(timeout=sleep_duration):
+                    logger.info("Job '%s' cancelled during retry backoff.", job_id)
+                    self._record_final_state(
+                        job_id, JobStatus.CANCELLED, "Job was cancelled by user."
+                    )
+                    return
 
     def _execute_job_pipeline(
         self,

@@ -2,6 +2,23 @@
 
 All notable changes to the SONORA platform are documented in this file.
 
+## [3.3.0-phase4.sprint2.batch2] - 2026-09-27
+
+### High-Priority Security & Edge Case Hardening
+- **HIGH-01 (Secondary DNS Rebinding / Pre-Send Validation):** Enhanced `install_ssrf_redirect_protection()` in `app/engine/ytdlp_engine.py` to hook `yt_dlp.networking._urllib.UrllibHandler` (`_send`/`send`) to perform pre-send hostname resolution and CIDR validation via `validate_url(req_url, resolve_dns=True)`. Added regression test in `tests/test_api.py`.
+- **HIGH-02 (Windows Reserved Device Names Protection):** Added `WINDOWS_RESERVED_NAMES_REGEX` matching `CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9` in `app/engine/sanitizer.py`. Safely prefixed matching filenames with an underscore in `sanitize_filename()`, `format_track_filename()`, and `safe_path_join()`, preventing Win32 device name collision crashes. Added comprehensive tests in `tests/test_sanitizer.py`.
+- **HIGH-03 (Empty Playlist Selection Prevention):** Fixed logic where deselecting all playlist items downloaded the full playlist. In `app/static/js/app.js`, disabled the download button when 0 items are selected. In `app/api/v1/endpoints.py`, rejected empty `selected_indices` with HTTP 400 `INVALID_URL`. In `app/engine/ytdlp_engine.py`, explicitly configured `opts["playlist_items"] = "0"` when an empty list is passed. Added regression tests in `tests/test_api.py` and `tests/test_frontend.py`.
+- **HIGH-04 (Playlist Checklist Layout Constraints):** Implemented `.playlist-checklist-container`, `.checklist-header`, and `.playlist-items-list` with `max-height: 280px; overflow-y: auto;` and styled custom scrollbars in `app/static/css/styles.css`, preventing unbounded vertical growth on large playlists. Added regression test in `tests/test_frontend.py`.
+- **HIGH-05 (Tracks Table Uniqueness & Idempotent Upsert):** Added `UNIQUE(job_id, track_index)` constraint and `idx_tracks_job_track` unique index in `app/db/repository.py:SCHEMA_SQL`. Added migration in `init_db(conn)` and upgraded `add_track_to_job()` to use `ON CONFLICT(job_id, track_index) DO UPDATE`, preventing duplicate track records on retry. Added regression test in `tests/test_database.py`.
+- **HIGH-06 (Cancellation-Aware Retry Backoff):** Replaced uninterruptible `time.sleep` in `app/services/job_manager.py:_run_job_with_retries()` with `context.cancel_event.wait(timeout=sleep_duration)`, allowing instant cancellation response and rapid worker shutdown during retry backoff. Added configurable `settings.RETRY_BACKOFF_BASE_SECONDS` and regression test in `tests/test_job_manager.py`.
+- **HIGH-07 (Reverse Proxy Client IP Trust & Spoofing Defense):** Added `TRUSTED_PROXIES` configuration setting in `app/core/config.py` with comma-separated validator. Implemented `extract_client_ip()` in `app/api/v1/endpoints.py` to safely inspect `X-Forwarded-For` and `X-Real-IP` only when connecting from trusted proxies. Added regression test in `tests/test_api.py`.
+
+## [3.2.0-phase4.sprint2.batch1] - 2026-09-27
+
+### Reliability & Concurrency Hardening
+- **CRIT-01 (Database Schema DDL Contention):** Eliminated repeated schema initialization DDL calls (`init_db`) on every database connection acquisition in `app/db/database.py`. Implemented thread-safe `_INITIALIZED_DATABASES` set cache and upfront schema initialization in `app/main.py:lifespan()`. Added regression test `test_schema_init_db_runs_only_once_per_database_path` in `tests/test_database.py`.
+- **CRIT-02 (Frontend Bounded SSE Polling Fallback):** Resolved unbounded polling loop in `app/static/js/app.js:startPollingFallback()`. Enforced strict boundaries: `MAX_POLL_404_RETRIES = 2`, `MAX_POLL_FAILURES = 5`, and `MAX_POLL_ATTEMPTS = 180` (6 minutes maximum duration), with guaranteed cleanup in `cancelDownload()`. Added regression test `test_sse_polling_fallback_bounded_retries` in `tests/test_frontend.py`.
+
 ## [3.1.0-phase4.sprint1] - 2026-09-23
 
 ### Security & Hardening

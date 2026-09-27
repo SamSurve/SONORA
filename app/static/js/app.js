@@ -269,6 +269,10 @@
       elements.readyBadge.textContent = 'Single Track';
       elements.playlistContainer.style.display = 'none';
       context.selectedTrackIndices = [1];
+      if (elements.startDownloadBtn) {
+        elements.startDownloadBtn.disabled = false;
+        elements.startDownloadBtn.title = '';
+      }
     }
   }
 
@@ -279,6 +283,11 @@
 
     elements.totalCount.textContent = tracks.length;
     elements.selectedCount.textContent = tracks.length;
+
+    if (elements.startDownloadBtn) {
+      elements.startDownloadBtn.disabled = tracks.length === 0;
+      elements.startDownloadBtn.title = tracks.length === 0 ? 'Select at least one track to download' : '';
+    }
 
     tracks.forEach((track) => {
       const item = document.createElement('label');
@@ -339,11 +348,29 @@
     });
     context.selectedTrackIndices = selected;
     elements.selectedCount.textContent = selected.length;
+
+    // HIGH-03: Disable download button when no tracks are selected
+    if (elements.startDownloadBtn) {
+      if (selected.length === 0) {
+        elements.startDownloadBtn.disabled = true;
+        elements.startDownloadBtn.title = 'Select at least one track to download';
+      } else {
+        elements.startDownloadBtn.disabled = false;
+        elements.startDownloadBtn.title = '';
+      }
+    }
   }
 
   // Start Download Action with Double-Submit Prevention (HIGH-06)
   async function startDownload() {
     if (!context.metadata || context.isSubmittingJob) return;
+
+    // HIGH-03: Prevent submitting empty playlist selection
+    if (context.metadata.is_playlist && (!context.selectedTrackIndices || context.selectedTrackIndices.length === 0)) {
+      showError('Please select at least one track from the playlist to download.');
+      return;
+    }
+
     context.isSubmittingJob = true;
 
     if (elements.startDownloadBtn) {
@@ -429,32 +456,73 @@
     };
   }
 
+  // Maximum retry parameters for SSE polling fallback (CRIT-02)
+  const MAX_POLL_FAILURES = 5;
+  const MAX_POLL_404_RETRIES = 2;
+  const MAX_POLL_ATTEMPTS = 180; // 6 minutes maximum polling duration
+  const POLL_INTERVAL_MS = 2000;
+
   function startPollingFallback(jobId) {
-    if (context.ssePollInterval) clearInterval(context.ssePollInterval);
+    if (context.ssePollInterval) {
+      clearInterval(context.ssePollInterval);
+      context.ssePollInterval = null;
+    }
+
+    let consecutiveErrors = 0;
+    let consecutive404s = 0;
+    let pollAttempts = 0;
 
     context.ssePollInterval = setInterval(async () => {
+      pollAttempts += 1;
+      if (pollAttempts > MAX_POLL_ATTEMPTS) {
+        closeSSE();
+        showError('Download monitoring timed out. Please verify the download or retry.');
+        return;
+      }
+
       try {
         const res = await fetch(`/api/v1/jobs/${jobId}`);
         const json = await res.json();
         if (res.ok && json.data) {
+          // Reset error counters on successful status response
+          consecutiveErrors = 0;
+          consecutive404s = 0;
+
           const data = json.data;
           updateProgressUI(data);
 
           if (data.status === 'completed') {
-            clearInterval(context.ssePollInterval);
+            closeSSE();
             renderCompletedState(data);
           } else if (data.status === 'failed') {
-            clearInterval(context.ssePollInterval);
+            closeSSE();
             showError(data.error_message || 'Download task failed.');
           } else if (data.status === 'cancelled') {
-            clearInterval(context.ssePollInterval);
+            closeSSE();
             setState(States.CANCELLED);
+          }
+        } else if (res.status === 404) {
+          consecutive404s += 1;
+          if (consecutive404s >= MAX_POLL_404_RETRIES) {
+            closeSSE();
+            showError('Download job was not found or has expired. Please try again.');
+          }
+        } else {
+          consecutiveErrors += 1;
+          if (consecutiveErrors >= MAX_POLL_FAILURES) {
+            closeSSE();
+            showError('Server error while checking download progress. Please try again later.');
           }
         }
       } catch (err) {
         console.error('Polling error:', err);
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= MAX_POLL_FAILURES) {
+          closeSSE();
+          showError('Lost network connection to server. Please check your connection.');
+        }
       }
-    }, 2000);
+    }, POLL_INTERVAL_MS);
   }
 
   function closeSSE() {
@@ -495,10 +563,11 @@
 
     try {
       await fetch(`/api/v1/jobs/${context.currentJobId}/cancel`, { method: 'POST' });
-      closeSSE();
-      setState(States.CANCELLED);
     } catch (err) {
       console.error('Cancellation error:', err);
+    } finally {
+      closeSSE();
+      setState(States.CANCELLED);
     }
   }
 
