@@ -98,11 +98,18 @@ class JobContext:
         self.future: Future[Any] | None = None
         self.listeners: list[Callable[[ProgressEvent], None]] = []
         self._lock = threading.Lock()
+        self.last_event: ProgressEvent | None = None
 
     def add_listener(self, callback: Callable[[ProgressEvent], None]) -> None:
         with self._lock:
             if callback not in self.listeners:
                 self.listeners.append(callback)
+            last = self.last_event
+        if last is not None:
+            try:
+                callback(last)
+            except Exception as e:
+                logger.debug("Replay listener callback exception for job '%s': %s", self.job_id, e)
 
     def remove_listener(self, callback: Callable[[ProgressEvent], None]) -> None:
         with self._lock:
@@ -111,6 +118,7 @@ class JobContext:
 
     def emit(self, event: ProgressEvent) -> None:
         with self._lock:
+            self.last_event = event
             current_listeners = list(self.listeners)
         for listener in current_listeners:
             try:

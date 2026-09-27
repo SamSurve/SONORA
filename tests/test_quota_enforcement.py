@@ -3,7 +3,7 @@
 Verifies MAX_PLAYLIST_ITEMS enforcement and client_id rate limiting in JobManager.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -30,7 +30,7 @@ def test_playlist_max_items_quota_enforcement() -> None:
             )
         assert "exceed maximum allowed limit" in str(exc_info.value)
     finally:
-        job_mgr.shutdown(wait=False)
+        job_mgr.shutdown(wait=True)
 
 
 def test_client_id_rate_limiting_enforcement() -> None:
@@ -40,7 +40,10 @@ def test_client_id_rate_limiting_enforcement() -> None:
 
     mock_addr = [(2, 1, 6, "", ("142.250.190.46", 443))]
     try:
-        with patch("socket.getaddrinfo", return_value=mock_addr):
+        with (
+            patch("socket.getaddrinfo", return_value=mock_addr),
+            patch.object(job_mgr._executor, "submit", return_value=MagicMock()),
+        ):
             # Submit 10 allowed requests
             for _ in range(10):
                 job_id = job_mgr.submit_job(
@@ -65,4 +68,4 @@ def test_client_id_rate_limiting_enforcement() -> None:
             )
             assert other_job_id is not None
     finally:
-        job_mgr.shutdown(wait=False)
+        job_mgr.shutdown(wait=True)

@@ -1,69 +1,37 @@
-# SONORA — PHASE 3 TASK TRACKER
+# SONORA — TASK TRACKER
 
-## Execution & Verification Status: ALL MILESTONES COMPLETE
+## Phase 4: Post-Release Hardening & Enterprise Production
 
-- [x] **Milestone 1: Frontend Foundation & Design System**
-  - [x] FastAPI web server entrypoint (`app/main.py`)
-  - [x] Core API v1 router (`app/api/v1/endpoints.py`)
-  - [x] Single-page HTML shell (`app/static/index.html`)
-  - [x] Swiss design CSS variables & reset (`app/static/css/styles.css`)
-  - [x] Initial JS controller (`app/static/js/app.js`)
-  - [x] API unit & integration tests (`tests/test_api.py`)
-  - [x] Git checkpoint (`0ad05104b5c7ce5776f040871b743cb2ea39b5f9`) & push to origin/master
+### Sprint 1: Critical Security + Crash + Core Reliability Hardening (COMPLETED)
+- [x] **CRIT-01 — SSE Event Mapping / Realtime Crash:** Map canonical `ProgressEvent` dataclass attributes (`stage`, `speed_bytes`, `current_track`, `track_index`) in `stream_job_events` in `endpoints.py`. Break cleanly on terminal states.
+- [x] **CRIT-02 — DOM XSS in Playlist Rendering:** Replace unsafe `innerHTML` in `renderPlaylistItems()` in `app.js` with `document.createElement()` and `textContent` text assignment.
+- [x] **CRIT-03 — Application Shutdown Lifecycle:** Update `lifespan` in `main.py` to call `get_job_manager().shutdown(wait=True)` and `janitor.join(timeout=5.0)`.
+- [x] **CRIT-04 — Secondary SSRF / Redirect Protection:** Install `install_ssrf_redirect_protection()` in `ytdlp_engine.py` hooking `validate_redirect()` into `yt-dlp` handlers, scoped to execution, leaving standard `urllib` unpatched.
+- [x] **CRIT-05 — Insecure CORS Policy:** Add configurable `CORS_ORIGINS` whitelist, safe credentials policy, and comma-separated string parsing in `config.py` and `main.py`.
+- [x] **CRIT-06 — Vulnerable Multipart Dependency:** Upgrade `python-multipart>=0.0.20` in `requirements.txt` and `pyproject.toml` to resolve CVE-2024-53981.
+- [x] **CRIT-07 — Metadata Inspection Deadlock:** Add `AbortController` (15-second bounded timeout) and `#cancel-inspecting-btn` in `app.js` and `index.html`.
+- [x] **HIGH-02 — File Delivery Confinement:** Enforce `resolved_file.is_relative_to(settings.COMPLETED_DIR.resolve())` in `download_job_file` in `endpoints.py`.
+- [x] **HIGH-06 — Double-Submit Race:** Add disabled state guards to `#submit-btn` and `#start-download-btn` during network activity.
+- [x] **HIGH-07 — CSS Syntax Error:** Fix unclosed brace on `.feature-icon` and remove duplicate CSS stub before `.mobile-menu-btn` in `styles.css`.
+- [x] **TEST-ISOLATION — Test Database Isolation:** Add autouse `isolate_test_environment` fixture in `tests/conftest.py` ensuring zero mutation of production databases.
+- [x] **AUDIT-01 — Quota Worker Leakage:** Mock `_executor.submit` in rate limiting tests to prevent real background downloads to YouTube Music.
+- [x] **AUDIT-02 — urllib Contamination:** Remove process-global `urllib.request` monkeypatch; restrict redirect checks to `yt-dlp` execution.
+- [x] **AUDIT-03 — Flaky SSE Timing:** Hook `add_listener` in tests to ensure deterministic ProgressEvent dispatch upon client registration.
+- [x] **AUDIT-04 — DB Fallback Parity:** Include canonical `ProgressEvent` keys in `TimeoutError` database fallback in `endpoints.py`.
+- [x] **AUDIT-07 — CORS String Parsing:** Add Pydantic `field_validator` in `config.py` for comma-separated `CORS_ORIGINS`.
+- [x] **AUDIT-08 — Test Worker Abandonment:** Replace `shutdown(wait=False)` with `shutdown(wait=True)` across test fixtures.
+- [x] **REGRESSION-TESTS — Automated Regression Coverage:** Add tests in `test_api.py`, `test_frontend.py`, and `test_quota_enforcement.py` verifying all Sprint 1 fixes.
 
-- [x] **Milestone 2: SONORA Startup Animation**
-  - [x] Refine audio waveform cord visuals with 4-cord harmonic SVG curves
-  - [x] Implement smooth wordmark reveal with staggered subtitle
-  - [x] Add 1.0s automatic fade transition into hero with 0.45s easing
-  - [x] Ensure full `prefers-reduced-motion` compliance
-  - [x] Automated frontend tests in `tests/test_frontend.py`
+---
 
-- [x] **Milestone 3: Complete Landing Page**
-  - [x] Polish Swiss hero typography, contrast, and layout balance
-  - [x] Build navigation with smooth section scrolling & mobile drawer
-  - [x] Polish light/dark theme toggle with persistent transition states
-  - [x] Enhance Supported Sites grid & Features showcase
-  - [x] Polish interactive FAQ accordion
-  - [x] Build semantic footer
-  - [x] Automated frontend tests in `tests/test_frontend.py`
-
-- [x] **Milestone 4: Metadata Inspection + Downloader Interaction**
-  - [x] Real URL inspection via `POST /api/v1/metadata`
-  - [x] Input bar with paste, clear, loading states, invalid URL feedback
-  - [x] Format & quality selection with honest acoustic taxonomy labels (`mp3_320`, `mp3_256`, `mp3_vbr`, `m4a`, `opus`, `flac`)
-  - [x] Graceful fallback when artwork is unavailable (SVG data URI)
-  - [x] Automated metadata inspection tests in `tests/test_api.py`
-
-- [x] **Milestone 5: Real Download Integration + Live Progress**
-  - [x] Connect frontend submission to `POST /api/v1/jobs`
-  - [x] Live progress streaming via `EventSource('/api/v1/jobs/{id}/events')`
-  - [x] Real-time UI progress updates: progress bar %, current track, speed (MB/s), ETA (s)
-  - [x] Polling fallback recovery on SSE disruption
-
-- [x] **Milestone 6: Playlist + Queue Experience**
-  - [x] Track checklist with individual checkboxes (`☑ Track 01`, `☑ Track 02`)
-  - [x] Select All / Deselect All toggle button and live counter
-  - [x] Aggregate progress calculation for multi-track downloads
-  - [x] Automatic ZIP packaging and delivery for playlist archives
-
-- [x] **Milestone 7: Completion, Failure & Cancellation Flows**
-  - [x] Completed state with direct file download link (`/api/v1/downloads/{id}/file`)
-  - [x] Cooperative cancellation (`POST /api/v1/jobs/{id}/cancel`)
-  - [x] Error state with human-friendly messages (zero raw paths/traceback leakage)
-  - [x] Reset flow returning to idle state
-
-- [x] **Milestone 8: Responsive Mobile + Desktop Polish**
-  - [x] Clean layout across desktop (1280px+), tablet (768px), and mobile (375px)
-  - [x] Mobile hamburger menu drawer with smooth toggle and backdrop
-  - [x] Touch target sizing (minimum 44px) and zero horizontal overflow
-
-- [x] **Milestone 9: Accessibility + Performance + Browser QA**
-  - [x] Keyboard navigation (`Tab`, `Space`, `Enter`) and `:focus-visible` styling
-  - [x] ARIA roles, states, and semantic labels (`aria-expanded`, `aria-label`, `role="status"`)
-  - [x] Performance check with zero console warnings and clean DOM lifecycle
-
-- [x] **Milestone 10: Final Production Verification + Documentation**
-  - [x] Complete test suite passing: 90 / 90 tests (100%)
-  - [x] Ruff linter: 0 errors
-  - [x] Legacy files preserved byte-for-byte unmodified
-  - [x] Updated `STATE.md`, `TASKS.md`, `CHANGELOG.md`, `REPORT.md`, `walkthrough.md`
+## Phase 3: Frontend + Product Build (COMPLETED & VERIFIED)
+- [x] Milestone 1: Frontend Foundation & Design System (Commit `0ad05104b5c7ce5776f040871b743cb2ea39b5f9`)
+- [x] Milestone 2: SONORA Startup Animation
+- [x] Milestone 3: Complete Landing Page
+- [x] Milestone 4: Metadata Inspection + Downloader Interaction
+- [x] Milestone 5: Real Download Integration + Live Progress
+- [x] Milestone 6: Playlist + Queue Experience
+- [x] Milestone 7: Completion, Failure & Cancellation Flows
+- [x] Milestone 8: Responsive Mobile + Desktop Polish
+- [x] Milestone 9: Accessibility + Performance + Browser QA
+- [x] Milestone 10: Final Production Verification + Release Docs (Commit `5ebfc9c`)

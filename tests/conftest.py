@@ -1,22 +1,45 @@
 """Pytest Configuration and Shared Test Fixtures."""
 
 import sqlite3
-import tempfile
 from collections.abc import Generator
 from pathlib import Path
 
 import pytest
 
+from app.core.config import settings
 from app.db.database import create_connection
 from app.db.repository import init_db
+from app.services.job_manager import job_manager
+
+
+@pytest.fixture(autouse=True)
+def isolate_test_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[None, None, None]:
+    """Ensures every test runs in an isolated scratchpad with no production DB/storage mutation."""
+    test_db = tmp_path / "test_isolated.db"
+    test_temp = tmp_path / "temp"
+    test_completed = tmp_path / "completed"
+    test_temp.mkdir(parents=True, exist_ok=True)
+    test_completed.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(settings, "DB_PATH", test_db)
+    monkeypatch.setattr(settings, "TEMP_DIR", test_temp)
+    monkeypatch.setattr(settings, "COMPLETED_DIR", test_completed)
+
+    yield
+
+    with job_manager._registry_lock:
+        active_contexts = list(job_manager._active_jobs.values())
+        job_manager._active_jobs.clear()
+    for ctx in active_contexts:
+        ctx.cancel_event.set()
 
 
 @pytest.fixture
-def temp_db_path() -> Generator[Path, None, None]:
-    """Provides an isolated temporary database file path and cleans up afterwards."""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        db_file = Path(tmp_dir) / "test_auralis.db"
-        yield db_file
+def temp_db_path(tmp_path: Path) -> Path:
+    """Provides an isolated temporary database file path."""
+    return tmp_path / "test_auralis.db"
 
 
 @pytest.fixture

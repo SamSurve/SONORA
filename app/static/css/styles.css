@@ -780,23 +780,6 @@ body {
   gap: 1.5rem;
 }
 
-.feature-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 1.75rem;
-}
-
-.feature-icon {
-  width: 44px;
-  height: 44px;
-  background-color: var(--bg-primary);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--accent-violet);
-  margin-bottom: 1rem;
 .mobile-menu-btn {
   display: none;
   background: transparent;

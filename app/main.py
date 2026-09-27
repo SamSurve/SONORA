@@ -11,7 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.endpoints import get_job_manager
@@ -38,15 +38,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     get_job_manager()
 
     # Start Janitor cleanup background daemon thread
-    janitor = JanitorDaemon(interval_seconds=300)
+    janitor = JanitorDaemon(interval_seconds=settings.JANITOR_SWEEP_INTERVAL_SECONDS)
     janitor.start()
     app.state.janitor = janitor
 
     yield
 
     logger.info("Shutting down SONORA application background services...")
-    # Stop janitor daemon
+    # Stop background download workers and cancel pending futures
+    get_job_manager().shutdown(wait=True)
+    # Stop janitor daemon and wait for active cleanup sweep to finish
     janitor.stop()
+    janitor.join(timeout=5.0)
 
 
 app = FastAPI(
@@ -56,12 +59,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS Middleware
+# Configure CORS Middleware with explicit configurable origins
+cors_origins = (
+    settings.CORS_ORIGINS
+    if isinstance(settings.CORS_ORIGINS, list)
+    else [s.strip() for s in str(settings.CORS_ORIGINS).split(",") if s.strip()]
+)
+# Per W3C spec: wildcard origin cannot be combined with credentials
+safe_credentials = (
+    False if "*" in cors_origins else getattr(settings, "CORS_ALLOW_CREDENTIALS", False)
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=cors_origins,
+    allow_credentials=safe_credentials,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -79,8 +92,6 @@ async def read_root() -> Response:
     """Serves the main SONORA Single-Page Web Application."""
     index_path = static_dir / "index.html"
     if index_path.exists():
-        from fastapi.responses import FileResponse
-
         return FileResponse(index_path, media_type="text/html")
     return JSONResponse(
         content={

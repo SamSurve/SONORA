@@ -24,7 +24,7 @@ def test_job_mgr(temp_db_path: Path) -> JobManager:
             init_db(conn)
         mgr = JobManager(max_workers=2)
         yield mgr
-        mgr.shutdown(wait=False)
+        mgr.shutdown(wait=True)
 
 
 class TestJobManagerLifecycle:

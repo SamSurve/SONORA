@@ -30,6 +30,9 @@
     currentJobId: null,
     eventSource: null,
     ssePollInterval: null,
+    inspectAbortController: null,
+    isInspecting: false,
+    isSubmittingJob: false,
   };
 
   // DOM Elements Registry
@@ -44,6 +47,8 @@
 
     elements.urlInput = document.getElementById('url-input');
     elements.clearBtn = document.getElementById('clear-btn');
+    elements.submitBtn = document.getElementById('submit-btn');
+    elements.cancelInspectingBtn = document.getElementById('cancel-inspecting-btn');
     elements.downloadForm = document.getElementById('download-form');
     elements.formatChips = document.querySelectorAll('.format-chip');
     elements.qualityNote = document.getElementById('quality-note');
@@ -161,8 +166,28 @@
     });
   }
 
-  // Metadata Inspection Action
+  // Metadata Inspection Action with Bounded Timeout & AbortController (CRIT-07, HIGH-06)
   async function handleMetadataInspection(url) {
+    if (context.isInspecting) return;
+    context.isInspecting = true;
+
+    // Guard UI against double submission
+    if (elements.submitBtn) {
+      elements.submitBtn.disabled = true;
+      elements.submitBtn.textContent = 'Inspecting...';
+    }
+    if (elements.urlInput) {
+      elements.urlInput.disabled = true;
+    }
+
+    const controller = new AbortController();
+    context.inspectAbortController = controller;
+
+    // 15-second bounded inspection timeout
+    const timeoutId = setTimeout(() => {
+      controller.abort('timeout');
+    }, 15000);
+
     setState(States.INSPECTING);
 
     try {
@@ -170,7 +195,10 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, is_playlist: false }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const json = await response.json();
       if (!response.ok) {
@@ -183,7 +211,27 @@
       renderReadyState();
       setState(States.READY);
     } catch (err) {
-      showError('Network error connecting to SONORA backend service.');
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError' || controller.signal.aborted) {
+        if (controller.signal.reason === 'user_cancelled') {
+          resetToIdle();
+          return;
+        }
+        showError('Metadata inspection timed out after 15 seconds. Please verify the URL and try again.');
+      } else {
+        showError('Network error connecting to SONORA backend service.');
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      context.isInspecting = false;
+      context.inspectAbortController = null;
+      if (elements.submitBtn) {
+        elements.submitBtn.disabled = false;
+        elements.submitBtn.textContent = 'Inspect';
+      }
+      if (elements.urlInput) {
+        elements.urlInput.disabled = false;
+      }
     }
   }
 
@@ -224,7 +272,7 @@
     }
   }
 
-  // Playlist Checklist Renderer
+  // Playlist Checklist Renderer (Safe DOM Construction - CRIT-02)
   function renderPlaylistItems(tracks) {
     elements.playlistList.innerHTML = '';
     context.selectedTrackIndices = tracks.map((t) => t.index);
@@ -241,14 +289,31 @@
       item.style.padding = '0.4rem 0';
       item.style.cursor = 'pointer';
 
-      item.innerHTML = `
-        <input type="checkbox" class="track-checkbox" data-index="${track.index}" checked>
-        <span class="track-num">${String(track.index).padStart(2, '0')}.</span>
-        <span class="track-name" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${track.title}</span>
-        <span class="track-dur" style="color:var(--text-muted); font-size:0.8rem;">${formatDuration(track.duration_seconds)}</span>
-      `;
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'track-checkbox';
+      checkbox.setAttribute('data-index', String(track.index));
+      checkbox.checked = true;
 
-      const checkbox = item.querySelector('.track-checkbox');
+      const trackNum = document.createElement('span');
+      trackNum.className = 'track-num';
+      trackNum.textContent = `${String(track.index).padStart(2, '0')}.`;
+
+      const trackName = document.createElement('span');
+      trackName.className = 'track-name';
+      trackName.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+      trackName.textContent = track.title || 'Untitled Track';
+
+      const trackDur = document.createElement('span');
+      trackDur.className = 'track-dur';
+      trackDur.style.cssText = 'color:var(--text-muted); font-size:0.8rem;';
+      trackDur.textContent = formatDuration(track.duration_seconds);
+
+      item.appendChild(checkbox);
+      item.appendChild(trackNum);
+      item.appendChild(trackName);
+      item.appendChild(trackDur);
+
       checkbox.addEventListener('change', () => {
         updateSelectedTrackIndices();
       });
@@ -276,9 +341,15 @@
     elements.selectedCount.textContent = selected.length;
   }
 
-  // Start Download Action
+  // Start Download Action with Double-Submit Prevention (HIGH-06)
   async function startDownload() {
-    if (!context.metadata) return;
+    if (!context.metadata || context.isSubmittingJob) return;
+    context.isSubmittingJob = true;
+
+    if (elements.startDownloadBtn) {
+      elements.startDownloadBtn.disabled = true;
+      elements.startDownloadBtn.textContent = 'Enqueuing...';
+    }
 
     setState(States.DOWNLOADING);
     elements.dlTitle.textContent = context.metadata.title;
@@ -313,6 +384,12 @@
       connectSSE(context.currentJobId);
     } catch (err) {
       showError('Failed to initiate job submission.');
+    } finally {
+      context.isSubmittingJob = false;
+      if (elements.startDownloadBtn) {
+        elements.startDownloadBtn.disabled = false;
+        elements.startDownloadBtn.textContent = 'Start Download';
+      }
     }
   }
 
@@ -444,9 +521,28 @@
   // Reset to Idle
   function resetToIdle() {
     closeSSE();
+    if (context.inspectAbortController) {
+      context.inspectAbortController.abort('user_cancelled');
+      context.inspectAbortController = null;
+    }
     context.metadata = null;
     context.currentJobId = null;
-    elements.urlInput.value = '';
+    context.isInspecting = false;
+    context.isSubmittingJob = false;
+
+    if (elements.submitBtn) {
+      elements.submitBtn.disabled = false;
+      elements.submitBtn.textContent = 'Inspect';
+    }
+    if (elements.urlInput) {
+      elements.urlInput.disabled = false;
+      elements.urlInput.value = '';
+    }
+    if (elements.startDownloadBtn) {
+      elements.startDownloadBtn.disabled = false;
+      elements.startDownloadBtn.textContent = 'Start Download';
+    }
+
     setState(States.IDLE);
   }
 
@@ -465,6 +561,14 @@
   // Event Listeners Binding
   function bindActionListeners() {
     elements.cancelInspectBtn.addEventListener('click', resetToIdle);
+    if (elements.cancelInspectingBtn) {
+      elements.cancelInspectingBtn.addEventListener('click', () => {
+        if (context.inspectAbortController) {
+          context.inspectAbortController.abort('user_cancelled');
+        }
+        resetToIdle();
+      });
+    }
     elements.startDownloadBtn.addEventListener('click', startDownload);
     elements.cancelDownloadBtn.addEventListener('click', cancelDownload);
     elements.resetBtn.addEventListener('click', resetToIdle);

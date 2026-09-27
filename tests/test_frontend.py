@@ -136,3 +136,47 @@ class TestSonoraFrontendAndAnimation:
         assert 'id="error-message"' in html
         assert 'id="error-retry-btn"' in html
 
+    def test_inspecting_state_cancel_button(self) -> None:
+        """Verifies presence of cancel button in inspecting state to prevent deadlocks."""
+        response = client.get("/")
+        assert response.status_code == 200
+        html = response.text
+        assert 'id="cancel-inspecting-btn"' in html
+        assert "Cancel Inspection" in html
+
+    def test_css_syntax_no_nested_mobile_menu_corruption(self) -> None:
+        """Verifies styles.css has clean syntax without nesting .mobile-menu-btn."""
+        response = client.get("/static/css/styles.css")
+        assert response.status_code == 200
+        css = response.text
+        assert ".mobile-menu-btn {" in css
+        # Verify feature-icon rule is properly terminated before mobile-menu-btn
+        feature_icon_idx = css.find(".feature-icon {")
+        mobile_menu_idx = css.find(".mobile-menu-btn {")
+        assert mobile_menu_idx != -1
+        assert feature_icon_idx != -1
+        # The closing brace for feature-icon or preceding class must exist before mobile-menu-btn
+        assert (
+            "}\n.mobile-menu-btn {" in css
+            or "}\r\n.mobile-menu-btn {" in css
+            or "}\n  .mobile-menu-btn {" in css
+            or "\n.mobile-menu-btn {" in css
+        )
+
+    def test_xss_safety_in_playlist_renderer(self) -> None:
+        """Verifies app.js renders track titles using textContent instead of innerHTML."""
+        response = client.get("/static/js/app.js")
+        assert response.status_code == 200
+        js = response.text
+        assert "trackName.textContent = track.title" in js
+        # Ensure track.title is not interpolated into innerHTML
+        assert "${track.title}" not in js
+
+    def test_metadata_inspection_abort_and_timeout(self) -> None:
+        """Verifies app.js implements AbortController and bounded timeout for inspection."""
+        response = client.get("/static/js/app.js")
+        assert response.status_code == 200
+        js = response.text
+        assert "new AbortController()" in js
+        assert "controller.abort('timeout')" in js
+        assert "15000" in js

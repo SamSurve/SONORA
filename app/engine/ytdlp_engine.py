@@ -15,9 +15,38 @@ import yt_dlp
 
 from app.core.config import settings
 from app.core.constants import AudioFormat
+from app.core.security import validate_redirect
 from app.engine.ffmpeg_locator import get_ffmpeg_path
 
 logger = logging.getLogger(__name__)
+
+
+def install_ssrf_redirect_protection() -> None:
+    """Hooks into yt-dlp's internal redirect handler to validate targets against SSRF rules.
+
+    Validates HTTP/HTTPS redirects initiated by yt-dlp's urllib networking layer against
+    private IP ranges and dangerous schemes.
+
+    Note on DNS Rebinding (TOCTOU): Application-level redirect inspection resolves hostnames
+    to evaluate private IP ranges. Full immunity against DNS rebinding requires socket-level
+    IP pinning, but this hook prevents standard redirect hops to restricted hosts or IP ranges.
+    """
+    try:
+        from yt_dlp.networking._urllib import RedirectHandler as YtdlpRedirectHandler
+
+        if not hasattr(YtdlpRedirectHandler, "_orig_redirect_request"):
+            YtdlpRedirectHandler._orig_redirect_request = YtdlpRedirectHandler.redirect_request
+
+            def _safe_ytdlp_redirect(self, req, fp, code, msg, headers, newurl):
+                current_url = req.full_url if hasattr(req, "full_url") else req.get_full_url()
+                validate_redirect(current_url, newurl)
+                return YtdlpRedirectHandler._orig_redirect_request(
+                    self, req, fp, code, msg, headers, newurl
+                )
+
+            YtdlpRedirectHandler.redirect_request = _safe_ytdlp_redirect
+    except (ImportError, AttributeError):
+        pass
 
 
 class DownloadCancelledException(Exception):
@@ -225,6 +254,7 @@ def execute_download(
         DownloadCancelledException: If user cancelled the task.
         Exception: If download fails.
     """
+    install_ssrf_redirect_protection()
     opts = build_ydl_options(
         job_id=job_id,
         temp_dir=temp_dir,
@@ -242,6 +272,7 @@ def execute_download(
 
 def extract_media_info(url: str, is_playlist: bool = False) -> dict[str, Any]:
     """Extracts media metadata without downloading streams."""
+    install_ssrf_redirect_protection()
     opts = {
         "quiet": True,
         "no_warnings": True,

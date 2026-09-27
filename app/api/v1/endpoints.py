@@ -15,6 +15,7 @@ from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.core.constants import ErrorCode, JobStatus
 from app.core.security import InvalidURLException, SSRFSecurityException
 from app.db.database import get_db_read
@@ -25,6 +26,7 @@ from app.services.job_manager import (
     PlaylistQuotaExceededException,
     RateLimitExceededException,
     StorageLimitExceededException,
+    job_manager,
 )
 from app.services.metadata_service import extract_metadata
 
@@ -33,16 +35,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["SONORA Core API"])
 
 
-# Global JobManager instance (initialized during app startup)
-_job_manager_instance: JobManager | None = None
-
-
 def get_job_manager() -> JobManager:
     """Retrieves the active global JobManager instance."""
-    global _job_manager_instance
-    if _job_manager_instance is None:
-        _job_manager_instance = JobManager()
-    return _job_manager_instance
+    return job_manager
 
 
 class MetadataRequest(BaseModel):
@@ -246,27 +241,54 @@ async def stream_job_events(job_id: str, request: Request) -> StreamingResponse:
             JobStatus.EXPIRED.value,
         }
 
+        # If no active in-memory context exists, check DB immediately
+        if not context:
+            with get_db_read() as conn:
+                job = get_job(conn, job_id)
+            if not job:
+                return
+            current_status = job.get("status")
+            db_event = {
+                "job_id": job_id,
+                "status": current_status,
+                "stage": current_status,
+                "progress": job.get("progress", 0),
+                "speed": job.get("speed", 0.0),
+                "eta": job.get("eta", 0),
+                "title": job.get("title"),
+                "current_title": job.get("title"),
+                "current_track": job.get("title"),
+                "total_tracks": None,
+                "completed_tracks": None,
+                "track_index": None,
+                "error_message": _sanitize_error_message(job.get("error_message", "")),
+            }
+            yield f"data: {json.dumps(db_event)}\n\n"
+            if current_status in terminal_states:
+                return
+
         try:
             while True:
-                if await request.is_disconnected():
-                    logger.debug("SSE client disconnected for job '%s'", job_id)
-                    break
-
                 try:
                     # Wait for event with timeout to periodically poll DB status
                     event = await asyncio.wait_for(queue.get(), timeout=1.0)
                     if event:
                         event_data = {
                             "job_id": event.job_id,
-                            "status": event.status,
+                            "status": event.stage,
+                            "stage": event.stage,
                             "progress": event.percent,
-                            "speed": event.speed_bytes_per_sec,
+                            "speed": event.speed_bytes,
                             "eta": event.eta_seconds,
-                            "current_title": event.current_title,
+                            "current_title": event.current_track,
+                            "current_track": event.current_track,
                             "total_tracks": event.total_tracks,
-                            "completed_tracks": event.completed_tracks,
+                            "completed_tracks": event.track_index,
+                            "track_index": event.track_index,
                         }
                         yield f"data: {json.dumps(event_data)}\n\n"
+                        if event.stage in terminal_states:
+                            break
                 except TimeoutError:
                     # Check DB status periodically
                     with get_db_read() as conn:
@@ -276,10 +298,16 @@ async def stream_job_events(job_id: str, request: Request) -> StreamingResponse:
                         db_event = {
                             "job_id": job_id,
                             "status": current_status,
+                            "stage": current_status,
                             "progress": job.get("progress", 0),
                             "speed": job.get("speed", 0.0),
                             "eta": job.get("eta", 0),
                             "title": job.get("title"),
+                            "current_title": job.get("title"),
+                            "current_track": job.get("title"),
+                            "total_tracks": None,
+                            "completed_tracks": None,
+                            "track_index": None,
                             "error_message": _sanitize_error_message(job.get("error_message", "")),
                         }
                         yield f"data: {json.dumps(db_event)}\n\n"
@@ -287,6 +315,9 @@ async def stream_job_events(job_id: str, request: Request) -> StreamingResponse:
                             break
                     else:
                         break
+        except asyncio.CancelledError:
+            logger.debug("SSE client disconnected for job '%s'", job_id)
+            raise
         finally:
             if context:
                 context.remove_listener(on_event)
@@ -334,7 +365,27 @@ async def download_job_file(job_id: str) -> Response:
         )
 
     file_path = Path(file_path_str)
-    if not file_path.exists() or not file_path.is_file():
+    # Security: Verify that the resolved file path is strictly confined to settings.COMPLETED_DIR
+    try:
+        resolved_file = file_path.resolve()
+        resolved_completed_dir = settings.COMPLETED_DIR.resolve()
+        if not resolved_file.is_relative_to(resolved_completed_dir):
+            logger.warning(
+                "Directory traversal attempt detected in download delivery: '%s' not in '%s'",
+                resolved_file,
+                resolved_completed_dir,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": ErrorCode.JOB_NOT_FOUND.value, "message": "Access denied."},
+            )
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": ErrorCode.JOB_NOT_FOUND.value, "message": "Invalid file path."},
+        ) from e
+
+    if not resolved_file.exists() or not resolved_file.is_file():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -344,7 +395,7 @@ async def download_job_file(job_id: str) -> Response:
         )
 
     # Determine media type & clean attachment filename
-    filename = file_path.name
+    filename = resolved_file.name
     media_type = "application/zip" if filename.endswith(".zip") else "audio/mpeg"
     if filename.endswith(".m4a"):
         media_type = "audio/mp4"
@@ -356,8 +407,7 @@ async def download_job_file(job_id: str) -> Response:
         media_type = "audio/wav"
 
     return FileResponse(
-        path=file_path,
+        path=resolved_file,
         filename=filename,
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

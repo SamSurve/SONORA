@@ -19,7 +19,7 @@ dependencies = [
     "pydantic-settings==2.5.2",
     "yt-dlp==2024.9.27",
     "mutagen==1.47.0",
-    "python-multipart==0.0.12",
+    "python-multipart>=0.0.20",
 ]
 
 [project.optional-dependencies]

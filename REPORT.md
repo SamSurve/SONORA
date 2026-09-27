@@ -88,3 +88,18 @@ All checks passed! (Ruff)
 | `music_fixer.py` | UNTOUCHED | Byte-for-byte SHA256 match |
 | `templates/index.html` | UNTOUCHED | Byte-for-byte SHA256 match |
 | `ffmpeg.exe` | UNTOUCHED | Byte-for-byte SHA256 match |
+
+---
+
+## 5. Phase 4 Sprint 1 Hardening & Post-Audit Repairs
+
+Following comprehensive audit of the production baseline, Sprint 1 hardening was implemented and followed by a dedicated post-audit repair cycle addressing 6 findings:
+
+1. **AUDIT-01 (Rate Limit Worker Leakage):** Mocked `_executor.submit` in `tests/test_quota_enforcement.py` to prevent background thread pool tasks from reaching upstream YouTube Music endpoints.
+2. **AUDIT-02 (Urllib Monkeypatch Contamination):** Eliminated global monkeypatching of Python's standard library `urllib.request`; isolated SSRF redirect validation strictly to yt-dlp execution.
+3. **AUDIT-03 (SSE Test Determinism):** Introduced a listener registration hook in `tests/test_api.py` to ensure deterministic ProgressEvent delivery over the SSE channel.
+4. **AUDIT-04 (DB Fallback Schema Parity):** Aligned keys in database fallback events with canonical `ProgressEvent` schema in `endpoints.py`.
+5. **AUDIT-07 (CORS Comma-Separated String Parsing):** Added Pydantic `@field_validator` in `config.py` to handle comma-separated strings for `CORS_ORIGINS`.
+6. **AUDIT-08 (Thread Abandonment Teardown):** Upgraded all test fixture shutdowns to `shutdown(wait=True)`.
+
+Detailed findings and verification logs are recorded in `PHASE_4_SPRINT_1_REPAIR_REPORT.md`.

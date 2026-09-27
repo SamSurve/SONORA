@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 
 try:
+    from pydantic import field_validator
     from pydantic_settings import BaseSettings, SettingsConfigDict
 
     class Settings(BaseSettings):
@@ -39,6 +40,24 @@ try:
         # Security & Abuse Mitigation
         MAX_PLAYLIST_ITEMS: int = 100
         RATE_LIMIT_PER_MINUTE: int = 10
+
+        # CORS Policy (Restrictive, explicit origin whitelist)
+        CORS_ORIGINS: list[str] = [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "http://localhost:3000",
+        ]
+        CORS_ALLOW_CREDENTIALS: bool = False
+
+        @field_validator("CORS_ORIGINS", mode="before")
+        @classmethod
+        def parse_cors_origins(cls, v: object) -> list[str]:
+            """Parse comma-separated string or list into list of origins."""
+            if isinstance(v, str):
+                return [orig.strip() for orig in v.split(",") if orig.strip()]
+            if isinstance(v, list | tuple):
+                return [str(orig).strip() for orig in v if str(orig).strip()]
+            return []
 
         # Database
         DB_PATH: Path = Path("data/auralis.db")
@@ -76,6 +95,17 @@ except ImportError:
 
             self.MAX_PLAYLIST_ITEMS: int = int(os.getenv("MAX_PLAYLIST_ITEMS", "100"))
             self.RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "10"))
+
+            raw_cors = os.getenv(
+                "CORS_ORIGINS",
+                "http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000",
+            )
+            self.CORS_ORIGINS: list[str] = [
+                orig.strip() for orig in raw_cors.split(",") if orig.strip()
+            ]
+            self.CORS_ALLOW_CREDENTIALS: bool = (
+                os.getenv("CORS_ALLOW_CREDENTIALS", "false").lower() in ("true", "1")
+            )
 
             self.DB_PATH: Path = Path(os.getenv("DB_PATH", "data/auralis.db"))
             self.FFMPEG_PATH: str | None = os.getenv("FFMPEG_PATH")
