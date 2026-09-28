@@ -1,0 +1,25 @@
+services:
+  sonora:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sonora:latest
+    container_name: sonora-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - DEBUG=false
+      - CANONICAL_BASE_URL=https://sonora.app
+      - MAX_CONCURRENT_WORKERS=4
+      - RATE_LIMIT_PER_MINUTE=10
+      - JANITOR_SWEEP_INTERVAL_SECONDS=300
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

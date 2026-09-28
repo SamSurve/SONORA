@@ -3,8 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SONORA — Modern Music Downloader</title>
-  <meta name="description" content="Fast, clean, and free modern music downloader utility. Your music, everywhere.">
+  <title>SONORA — Modern High-Fidelity Music Downloader & Personal Media Library</title>
+  <meta name="description" content="Fast, clean, and free modern music downloader and audio converter. Download single tracks or full playlists in FLAC, MP3 320kbps, M4A, or MP4 with custom tags and artwork.">
+  <meta name="keywords" content="music downloader, audio converter, flac downloader, mp3 320kbps, opus audio, soundcloud downloader, youtube music converter, personal media library">
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+  <link rel="canonical" href="https://sonora.app/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:locale" content="en_US">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="SONORA — Modern High-Fidelity Music Downloader & Media Library">
+  <meta property="og:description" content="Fast, clean, and free high-fidelity audio downloader. Download single tracks or full playlists with custom tags, artwork, and multiple audio profiles.">
+  <meta property="og:url" content="https://sonora.app/">
+  <meta property="og:site_name" content="SONORA">
+  <meta property="og:image" content="https://sonora.app/static/img/favicon.svg">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="SONORA — Modern High-Fidelity Music Downloader & Media Library">
+  <meta name="twitter:description" content="Fast, clean, and free high-fidelity audio downloader. Download single tracks or full playlists with custom tags, artwork, and multiple audio profiles.">
+  <meta name="twitter:image" content="https://sonora.app/static/img/favicon.svg">
+
   <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
   <link rel="alternate icon" href="/favicon.ico">
 
@@ -14,6 +33,37 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="/static/css/styles.css">
+
+  <!-- Schema.org JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://sonora.app/#website",
+        "url": "https://sonora.app/",
+        "name": "SONORA",
+        "description": "Fast, clean, and free modern music downloader and personal media library.",
+        "inLanguage": "en-US"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://sonora.app/#application",
+        "name": "SONORA",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web, Windows, Linux, macOS",
+        "url": "https://sonora.app/",
+        "description": "High-fidelity audio extraction and playlist downloading utility with customizable acoustic profiles, tag editing, and local media library history.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
 
@@ -46,8 +96,9 @@
       <nav class="site-nav" id="site-nav">
         <a href="#hero" id="nav-downloader" class="nav-link active">Downloader</a>
         <a href="#library" id="nav-library" class="nav-link">Library</a>
+        <a href="#how-it-works" class="nav-link">How It Works</a>
+        <a href="#profiles" class="nav-link">Profiles</a>
         <a href="#features" class="nav-link">Features</a>
-        <a href="#sites" class="nav-link">Supported Sites</a>
         <a href="#faq" class="nav-link">FAQ</a>
       </nav>
 
@@ -440,6 +491,84 @@
       </div>
     </div>
 
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="section how-it-works-section" aria-labelledby="how-heading">
+      <div class="container">
+        <div class="section-header">
+          <div class="badge-pill">
+            <span class="badge-dot"></span>
+            <span>Simple 4-Step Process</span>
+          </div>
+          <h2 id="how-heading" class="section-title">How SONORA Works</h2>
+          <p class="section-subtitle">Effortless, transparent music downloading designed for sound enthusiasts.</p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-number">01</div>
+            <h3>Paste Link</h3>
+            <p>Paste any public track or playlist URL from YouTube, SoundCloud, Bandcamp, or Vimeo.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">02</div>
+            <h3>Review & Tag</h3>
+            <p>Review scraped metadata, edit Title/Artist/Album/Year tags, and upload custom album artwork.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">03</div>
+            <h3>Select Profile</h3>
+            <p>Choose your desired acoustic profile: Audiophile FLAC, Standard MP3 320, Space Saver M4A, or Raw Video.</p>
+          </div>
+          <div class="step-card">
+            <div class="step-number">04</div>
+            <h3>Download & Enjoy</h3>
+            <p>Direct download with real-time SSE progress. Playlists are automatically packaged into clean ZIP archives.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Download Profiles Showcase Section -->
+    <section id="profiles" class="section profiles-section" aria-labelledby="profiles-heading">
+      <div class="container">
+        <div class="section-header">
+          <div class="badge-pill">
+            <span class="badge-dot"></span>
+            <span>Acoustic Taxonomy</span>
+          </div>
+          <h2 id="profiles-heading" class="section-title">Download Profiles & Codec Fidelity</h2>
+          <p class="section-subtitle">Engineered with explicit acoustic taxonomy. No fake upscaling, no deceptive bitrate claims.</p>
+        </div>
+
+        <div class="profiles-overview-grid">
+          <div class="profile-feature-card">
+            <div class="profile-badge badge-audiophile">Audiophile</div>
+            <h3>FLAC Lossless</h3>
+            <p class="profile-spec">Bitrate: Source Max • Codec: FLAC / 24-bit PCM</p>
+            <p>Preserves full pristine audio dynamic range in an uncompressed FLAC container. Ideal for archival storage and studio listening.</p>
+          </div>
+          <div class="profile-feature-card">
+            <div class="profile-badge badge-standard">Standard</div>
+            <h3>MP3 320 kbps</h3>
+            <p class="profile-spec">Bitrate: 320 kbps CBR • Codec: LAME MP3</p>
+            <p>Maximum compatibility with any car audio, legacy MP3 player, DJ software, or mobile device at peak psychoacoustic clarity.</p>
+          </div>
+          <div class="profile-feature-card">
+            <div class="profile-badge badge-saver">Space Saver</div>
+            <h3>M4A / AAC 128 kbps</h3>
+            <p class="profile-spec">Bitrate: 128 kbps VBR • Codec: AAC-LC</p>
+            <p>Optimized for limited phone storage and mobile data. Delivers superior high-efficiency clarity at half the file size of standard MP3.</p>
+          </div>
+          <div class="profile-feature-card">
+            <div class="profile-badge badge-video">Raw Video</div>
+            <h3>MP4 Stream Copy</h3>
+            <p class="profile-spec">Container: MP4 • Direct Stream Copy</p>
+            <p>Direct bitstream copy of video and audio streams without re-encoding, preserving exact original 1080p/4K visual and audio fidelity.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Features Section -->
     <section id="features" class="section features-section">
       <div class="container">
@@ -479,6 +608,24 @@
             </div>
             <h3>Playlist Automation</h3>
             <p>Select specific tracks from full playlists and download them packaged in a clean, organized ZIP archive.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Trust & Privacy Section -->
+    <section id="trust" class="section trust-section">
+      <div class="container">
+        <div class="trust-banner">
+          <div class="trust-content">
+            <h2>Your Privacy & Freedom by Design</h2>
+            <p>SONORA is built with privacy-first principles: no user tracking, no intrusive advertisements, no third-party telemetry, and automated temporary file cleanup.</p>
+            <div class="trust-pills">
+              <span class="trust-pill">✓ 100% Free & Open</span>
+              <span class="trust-pill">✓ Zero Ad Tracking</span>
+              <span class="trust-pill">✓ Automated Janitor Cleanup</span>
+              <span class="trust-pill">✓ Pre-Flight SSRF Protection</span>
+            </div>
           </div>
         </div>
       </div>
@@ -528,10 +675,79 @@
               <p>No. FLAC is a lossless container, but converting a lossy YouTube/SoundCloud stream to FLAC cannot restore frequencies already discarded by the platform. SONORA communicates quality semantics transparently.</p>
             </div>
           </details>
+
+          <details class="faq-item">
+            <summary class="faq-question">How does the persistent Library work?</summary>
+            <div class="faq-answer">
+              <p>SONORA maintains an internal history of your download sessions locally. You can search, inspect tracklists, directly re-download existing files, or retry past jobs at any time.</p>
+            </div>
+          </details>
         </div>
       </div>
     </section>
   </main>
+
+  <!-- Legal & Trust Modals -->
+  <!-- Privacy Policy Modal -->
+  <div id="privacy-modal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="privacy-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="privacy-modal-title" class="modal-title">Privacy Policy</h3>
+        <button type="button" class="icon-btn modal-close-btn" data-close="privacy-modal" aria-label="Close Privacy Policy dialog">&times;</button>
+      </div>
+      <div class="modal-body legal-modal-body">
+        <h4>1. Commitment to Privacy</h4>
+        <p>SONORA operates under strict privacy-first principles. We do not collect, store, or sell personal identifying information, IP logs, or browsing habits.</p>
+        <h4>2. Data Processing & Storage</h4>
+        <p>Media processing occurs locally on your host instance. Media files downloaded through SONORA are stored temporarily in your local data directory and automatically purged by the Janitor cleanup daemon according to configured retention TTLs.</p>
+        <h4>3. Cookies & Tracking</h4>
+        <p>SONORA does not utilize tracking cookies, advertising analytics, or third-party fingerprinting scripts.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="privacy-modal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terms of Service Modal -->
+  <div id="terms-modal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="terms-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="terms-modal-title" class="modal-title">Terms of Service</h3>
+        <button type="button" class="icon-btn modal-close-btn" data-close="terms-modal" aria-label="Close Terms of Service dialog">&times;</button>
+      </div>
+      <div class="modal-body legal-modal-body">
+        <h4>1. Acceptable Use</h4>
+        <p>SONORA is provided as an open media extraction and formatting utility for personal, non-commercial use, archival purposes, and time-shifting permitted under applicable copyright law.</p>
+        <h4>2. Intellectual Property & Rights</h4>
+        <p>Users are solely responsible for ensuring they have the legal right, permissions, or license to download, transcode, and store media items from third-party platforms.</p>
+        <h4>3. Disclaimer of Warranties</h4>
+        <p>SONORA is provided "AS IS" without warranties of any kind, express or implied. The developers assume no liability for misuse of this software.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="terms-modal">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DMCA / Copyright Guidance Modal -->
+  <div id="dmca-modal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="dmca-modal-title">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="dmca-modal-title" class="modal-title">Copyright & DMCA Notice</h3>
+        <button type="button" class="icon-btn modal-close-btn" data-close="dmca-modal" aria-label="Close Copyright dialog">&times;</button>
+      </div>
+      <div class="modal-body legal-modal-body">
+        <h4>Respect for Copyright</h4>
+        <p>SONORA respects the intellectual property rights of creators and media providers worldwide. This utility does not host, index, or distribute copyrighted content publicly.</p>
+        <h4>Takedown & Inquiries</h4>
+        <p>As a self-hosted client-side utility, content is retrieved on-demand by end users. If you have concerns regarding third-party integration, please refer to the project repository documentation.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-close="dmca-modal">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Footer -->
   <footer class="site-footer">
@@ -539,6 +755,11 @@
       <div class="footer-left">
         <span class="footer-brand">SONORA</span>
         <span class="footer-copy">• © 2026 SONORA. Your Music. Everywhere.</span>
+      </div>
+      <div class="footer-links">
+        <button type="button" class="footer-link-btn" id="open-privacy-btn">Privacy Policy</button>
+        <button type="button" class="footer-link-btn" id="open-terms-btn">Terms of Service</button>
+        <button type="button" class="footer-link-btn" id="open-dmca-btn">Copyright Notice</button>
       </div>
       <div class="footer-right">
         <a href="#hero">Back to top ↑</a>

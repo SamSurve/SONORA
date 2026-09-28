@@ -1,11 +1,10 @@
 # SONORA — PROJECT STATE
 
-**Current Phase:** Phase 5 — Core Product Enhancements
-**Current Feature:** Feature 2 — Pre-Download Metadata & Artwork Editor (COMPLETED)
-**Baseline Commit:** `d4e3cd9` (`feat: add download profiles`)
+**Current Phase:** Phase 6 — Public Web / Google Search / Production Readiness (COMPLETED)
+**Baseline Commit:** `6e9848e` (`feat: complete phase 5 media library features`)
 **Remote:** `https://github.com/SamSurve/SONORA.git`
 **Branch:** `master`
-**Status:** Phase 5 Feature 2 Implemented & Verified — Ready for Review & Checkpoint
+**Status:** Phase 6 Public Web, SEO, Security, Observability & Containerization Implemented & Verified
 
 ---
 
@@ -132,5 +131,22 @@
 | **Frontend UI** | Library Table, Toolbar & Pagination | **COMPLETED** | Added `#library` section in `index.html`, responsive styling in `styles.css`, and search/filter/pagination controller in `app.js`. |
 | **Frontend UX** | Details Modal & Dynamic Actions | **COMPLETED** | Added modal dialog inspecting full job details & tracks, debounced search (300ms) with out-of-order response guard, Purged status indicators, and Retry action buttons. |
 | **Testing** | Comprehensive Automated Test Suite | **COMPLETED** | Created `tests/test_library.py` covering repository aggregation, API pagination, search/filtering, file availability detection, retry guards, and template contracts. |
+
+---
+
+## 7. Phase 6 — Public Web / Google Search / Production Readiness Matrix
+
+| Component | Feature Specification | Status | Implementation Details |
+| :--- | :--- | :--- | :--- |
+| **Observability** | Liveness & Readiness Probes | **COMPLETED** | Added `/healthz` (fast ping) and `/readyz` (deep database, storage, and worker health inspection) in `app/main.py`. |
+| **SEO / Crawling** | Robots.txt & Dynamic Sitemap | **COMPLETED** | Added `/robots.txt` (with explicit API disallow and sitemap pointer) and dynamic `/sitemap.xml` in `app/main.py`. |
+| **Security** | Security Headers & Private Endpoint Isolation | **COMPLETED** | Added middleware injecting `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, and `X-Robots-Tag: noindex` on all `/api/` routes. |
+| **Structured Data** | Schema.org JSON-LD | **COMPLETED** | Added truthful `@graph` JSON-LD for `WebSite` and `SoftwareApplication` without deceptive or fake review claims. |
+| **Public UX & SEO** | Informative HTML Content | **COMPLETED** | Added *How It Works*, *Download Profiles Showcase*, and *Trust & Privacy* sections in initial HTML for indexability. |
+| **Legal & Trust** | Policies & Copyright Guidance | **COMPLETED** | Added accessible modal dialogs and endpoints for Privacy Policy (`/privacy`), Terms of Service (`/terms`), and DMCA Guidance. |
+| **Deployment** | Multi-Stage Docker & Compose | **COMPLETED** | Created production Debian-slim `Dockerfile` with FFmpeg, non-root user `sonora`, `.dockerignore`, and `docker-compose.yml`. |
+| **CI/CD** | GitHub Actions Workflow | **COMPLETED** | Created `.github/workflows/ci.yml` running Ruff linting and pytest test execution on Python 3.12. |
+| **Testing** | Production Test Suite | **COMPLETED** | Created `tests/test_production_readiness.py` covering observability probes, robots, sitemap, security headers, JSON-LD, and legal endpoints. |
+
 
 

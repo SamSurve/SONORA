@@ -82,6 +82,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def security_and_robots_headers_middleware(request: Request, call_next: object) -> Response:
+    """Injects defense-in-depth security headers and X-Robots-Tag directives on responses."""
+    response: Response = await call_next(request)  # type: ignore[misc]
+
+    if settings.ENABLE_SECURITY_HEADERS:
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=()"
+        )
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+
+    # Strict noindex on private API endpoints, jobs, and file downloads
+    path = request.url.path
+    if path.startswith("/api/") or path.startswith("/data/"):
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+
+    return response
+
+
 # Register API v1 Router
 app.include_router(api_v1_router)
 
@@ -105,6 +128,130 @@ async def read_root() -> Response:
     )
 
 
+@app.get("/healthz", tags=["Observability"])
+async def liveness_probe() -> dict[str, str]:
+    """Lightweight liveness probe for container orchestrators and load balancers."""
+    return {"status": "ok", "app": "SONORA"}
+
+
+@app.get("/readyz", tags=["Observability"])
+async def readiness_probe() -> JSONResponse:
+    """Readiness probe verifying database connectivity, storage, and worker health."""
+    checks: dict[str, str] = {}
+    is_ready = True
+
+    # 1. Database check
+    try:
+        from app.db.database import get_db_read
+
+        with get_db_read() as conn:
+            cursor = conn.execute("SELECT 1;")
+            cursor.fetchone()
+        checks["database"] = "healthy"
+    except Exception as e:
+        logger.error("Readiness check database failure: %s", e)
+        checks["database"] = "unhealthy"
+        is_ready = False
+
+    # 2. Storage check
+    try:
+        settings.TEMP_DIR.mkdir(parents=True, exist_ok=True)
+        settings.COMPLETED_DIR.mkdir(parents=True, exist_ok=True)
+        probe_file = settings.TEMP_DIR / ".readyz_probe"
+        probe_file.write_text("probe", encoding="utf-8")
+        probe_file.unlink(missing_ok=True)
+        checks["storage"] = "healthy"
+    except Exception as e:
+        logger.error("Readiness check storage failure: %s", e)
+        checks["storage"] = "unhealthy"
+        is_ready = False
+
+    # 3. Worker pool check
+    try:
+        manager = get_job_manager()
+        checks["worker_pool"] = "healthy" if not manager.worker_pool._shutdown else "shutdown"
+    except Exception:
+        checks["worker_pool"] = "unknown"
+
+    status_code = 200 if is_ready else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "ready" if is_ready else "not_ready",
+            "checks": checks,
+        },
+    )
+
+
+@app.get("/robots.txt", response_class=Response, include_in_schema=False)
+async def robots_txt() -> Response:
+    """Serves robots.txt with clean search engine crawl instructions and sitemap link."""
+    base_url = settings.CANONICAL_BASE_URL.rstrip("/")
+    content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Allow: /static/\n"
+        "Disallow: /api/\n"
+        "Disallow: /data/\n"
+        "\n"
+        f"Sitemap: {base_url}/sitemap.xml\n"
+    )
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/sitemap.xml", response_class=Response, include_in_schema=False)
+async def sitemap_xml() -> Response:
+    """Serves XML sitemap referencing only public canonical endpoints."""
+    base_url = settings.CANONICAL_BASE_URL.rstrip("/")
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        "  <url>\n"
+        f"    <loc>{base_url}/</loc>\n"
+        "    <changefreq>weekly</changefreq>\n"
+        "    <priority>1.0</priority>\n"
+        "  </url>\n"
+        "  <url>\n"
+        f"    <loc>{base_url}/privacy</loc>\n"
+        "    <changefreq>monthly</changefreq>\n"
+        "    <priority>0.5</priority>\n"
+        "  </url>\n"
+        "  <url>\n"
+        f"    <loc>{base_url}/terms</loc>\n"
+        "    <changefreq>monthly</changefreq>\n"
+        "    <priority>0.5</priority>\n"
+        "  </url>\n"
+        "</urlset>\n"
+    )
+    return Response(
+        content=content,
+        media_type="application/xml; charset=utf-8",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/privacy", response_model=None, include_in_schema=False)
+async def privacy_policy() -> Response:
+    """Serves Privacy Policy document or serves index SPA."""
+    index_path = static_dir / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path, media_type="text/html")
+    return JSONResponse(content={"title": "Privacy Policy", "app": "SONORA"})
+
+
+@app.get("/terms", response_model=None, include_in_schema=False)
+async def terms_of_service() -> Response:
+    """Serves Terms of Service document or serves index SPA."""
+    index_path = static_dir / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path, media_type="text/html")
+    return JSONResponse(content={"title": "Terms of Service", "app": "SONORA"})
+
+
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> Response:
     """Serves the SONORA browser favicon, preventing 404 logging."""
@@ -126,3 +273,4 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
             "message": "An unexpected server error occurred. Please try again later.",
         },
     )
+

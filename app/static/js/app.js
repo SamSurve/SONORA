@@ -1490,6 +1490,70 @@
     fetchLibraryJobs();
   }
 
+  // =========================================================================
+  // LEGAL & TRUST MODALS CONTROLLER
+  // =========================================================================
+
+  function initLegalModals() {
+    function openModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) {
+        modal.classList.add('active');
+        modal.setAttribute('aria-hidden', 'false');
+      }
+    }
+
+    function closeModal(modal) {
+      if (modal) {
+        modal.classList.remove('active');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+    }
+
+    const openPrivacyBtn = document.getElementById('open-privacy-btn');
+    if (openPrivacyBtn) {
+      openPrivacyBtn.addEventListener('click', () => openModal('privacy-modal'));
+    }
+
+    const openTermsBtn = document.getElementById('open-terms-btn');
+    if (openTermsBtn) {
+      openTermsBtn.addEventListener('click', () => openModal('terms-modal'));
+    }
+
+    const openDmcaBtn = document.getElementById('open-dmca-btn');
+    if (openDmcaBtn) {
+      openDmcaBtn.addEventListener('click', () => openModal('dmca-modal'));
+    }
+
+    // Generic data-close handler
+    document.querySelectorAll('[data-close]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const modalId = btn.getAttribute('data-close');
+        if (modalId) {
+          closeModal(document.getElementById(modalId));
+        }
+      });
+    });
+
+    // Close on backdrop click
+    document.querySelectorAll('.modal-backdrop').forEach((modal) => {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          closeModal(modal);
+        }
+      });
+    });
+
+    // Escape key listener for any open modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-backdrop.active').forEach((modal) => {
+          closeModal(modal);
+        });
+      }
+    });
+  }
+
   // Application Entrypoint Initialization
   document.addEventListener('DOMContentLoaded', () => {
     initElements();
@@ -1503,5 +1567,6 @@
     initInputHandlers();
     bindActionListeners();
     initLibrary();
+    initLegalModals();
   });
 })();

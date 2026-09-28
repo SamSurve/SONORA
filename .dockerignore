@@ -1,0 +1,31 @@
+# Git & Version Control
+.git
+.gitignore
+
+# Python Caches & Virtual Environments
+.venv
+venv
+ENV
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Local Test Suite & Temporary Artifacts
+tests/
+scratch/
+tmp/
+*.log
+
+# Local Runtime Data
+data/
+*.db
+*.sqlite3
+
+# OS Files
+.DS_Store
+Thumbs.db

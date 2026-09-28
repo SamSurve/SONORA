@@ -82,6 +82,11 @@ try:
         # Optional explicit FFmpeg executable override
         FFMPEG_PATH: str | None = None
 
+        # Public Web, SEO, & Security Headers
+        CANONICAL_BASE_URL: str = "https://sonora.app"
+        ENABLE_SECURITY_HEADERS: bool = True
+        HSTS_MAX_AGE_SECONDS: int = 31536000
+
         def ensure_directories(self) -> None:
             """Ensures all necessary local storage directories exist."""
             self.TEMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -126,6 +131,12 @@ except ImportError:
 
             self.DB_PATH: Path = Path(os.getenv("DB_PATH", "data/auralis.db"))
             self.FFMPEG_PATH: str | None = os.getenv("FFMPEG_PATH")
+
+            self.CANONICAL_BASE_URL: str = os.getenv("CANONICAL_BASE_URL", "https://sonora.app")
+            self.ENABLE_SECURITY_HEADERS: bool = (
+                os.getenv("ENABLE_SECURITY_HEADERS", "true").lower() in ("true", "1")
+            )
+            self.HSTS_MAX_AGE_SECONDS: int = int(os.getenv("HSTS_MAX_AGE_SECONDS", "31536000"))
 
         def ensure_directories(self) -> None:
             """Ensures all necessary local storage directories exist."""

@@ -2,6 +2,30 @@
 
 All notable changes to the SONORA platform are documented in this file.
 
+## [4.0.0-phase6] - 2026-09-28
+
+### Phase 6: Public Web / Google Search / Production Readiness
+- **Production Observability & Probes (`app/main.py`):**
+  - Added `/healthz` liveness probe endpoint returning lightweight HTTP 200 health confirmation.
+  - Added `/readyz` readiness probe endpoint performing real-time health checks on SQLite database connectivity, storage scratchpad write access, and threadpool worker health.
+- **Search Engine Optimization & Indexability (`app/main.py`, `app/static/index.html`):**
+  - Added `/robots.txt` endpoint dynamically generating crawl rules that explicitly disallow private `/api/` and `/data/` paths while declaring canonical sitemap location.
+  - Added `/sitemap.xml` endpoint serving valid XML referencing only public canonical endpoints (`/`, `/privacy`, `/terms`).
+  - Added canonical `<link rel="canonical">`, Open Graph, Twitter Cards, and Schema.org JSON-LD `@graph` (`SoftwareApplication`, `WebSite`) structured data.
+- **Defense-in-Depth Security Headers (`app/main.py`):**
+  - Added HTTP middleware injecting `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, and `Cross-Origin-Opener-Policy: same-origin`.
+  - Added `X-Robots-Tag: noindex, nofollow, noarchive` on all `/api/*` and `/data/*` responses to ensure zero search engine indexing of private jobs or downloads.
+- **Public Informational Sections & Legal Pages (`app/static/index.html`, `app/static/css/styles.css`, `app/static/js/app.js`):**
+  - Added public *How It Works* step breakdown, *Download Profiles & Codec Fidelity* showcase, and *Trust & Privacy* statements into initial HTML.
+  - Added accessible modal dialogs and dedicated routes (`/privacy`, `/terms`) for Privacy Policy, Terms of Service, and DMCA Copyright Guidance.
+- **Containerization & Deployment (`Dockerfile`, `.dockerignore`, `docker-compose.yml`):**
+  - Created multi-stage Debian-slim `Dockerfile` with system FFmpeg, non-root user `sonora`, `/healthz` container healthcheck, volume mounts for `/app/data`, and optimized production `uvicorn` entrypoint.
+  - Configured production `docker-compose.yml` and `.dockerignore`.
+- **Continuous Integration (`.github/workflows/ci.yml`):**
+  - Created GitHub Actions CI workflow running Ruff linting and pytest automated testing on Python 3.12.
+- **Automated Test Suite (`tests/test_production_readiness.py`):**
+  - Created test suite validating liveness/readiness probes, robots.txt, XML sitemaps, security headers, X-Robots-Tag directives, JSON-LD schemas, and legal routes.
+
 ## [3.7.0-phase5.feature3] - 2026-09-28
 
 ### Phase 5 / Feature 3: Persistent Download Library & History
