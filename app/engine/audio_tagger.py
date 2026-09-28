@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 from mutagen.flac import FLAC, Picture
-from mutagen.id3 import APIC, ID3, TALB, TIT2, TPE1, TRCK, ID3NoHeaderError
+from mutagen.id3 import APIC, ID3, TALB, TDRC, TIT2, TPE1, TRCK, TYER, ID3NoHeaderError
 from mutagen.mp4 import MP4, MP4Cover
 from mutagen.oggopus import OggOpus
 from mutagen.wave import WAVE
@@ -114,6 +114,7 @@ def tag_audio_file(
     album: str | None = None,
     track_number: int | None = None,
     artwork_path: Path | None = None,
+    year: int | str | None = None,
 ) -> bool:
     """Injects metadata tags and embeds cover art into an audio file.
 
@@ -136,19 +137,63 @@ def tag_audio_file(
             artwork_data = artwork_path.read_bytes()
             mime_type = _detect_image_mime(artwork_path)
         except Exception as e:
-            logger.warning("Could not read artwork file '%s': %e", artwork_path, e)
+            logger.warning("Could not read artwork file '%s': %s", artwork_path, e)
 
     try:
         if ext == ".mp3":
-            _tag_mp3(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
+            _tag_mp3(
+                file_path,
+                title,
+                artist,
+                album_title,
+                track_number,
+                artwork_data,
+                mime_type,
+                year,
+            )
         elif ext in (".m4a", ".mp4"):
-            _tag_m4a(file_path, title, artist, album_title, track_number, artwork_data)
+            _tag_m4a(
+                file_path,
+                title,
+                artist,
+                album_title,
+                track_number,
+                artwork_data,
+                year,
+            )
         elif ext == ".flac":
-            _tag_flac(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
+            _tag_flac(
+                file_path,
+                title,
+                artist,
+                album_title,
+                track_number,
+                artwork_data,
+                mime_type,
+                year,
+            )
         elif ext == ".opus":
-            _tag_opus(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
+            _tag_opus(
+                file_path,
+                title,
+                artist,
+                album_title,
+                track_number,
+                artwork_data,
+                mime_type,
+                year,
+            )
         elif ext == ".wav":
-            _tag_wav(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
+            _tag_wav(
+                file_path,
+                title,
+                artist,
+                album_title,
+                track_number,
+                artwork_data,
+                mime_type,
+                year,
+            )
         return True
     except Exception as e:
         logger.warning("Failed to tag audio file '%s': %s", file_path, e)
@@ -163,6 +208,7 @@ def _tag_mp3(
     track_number: int | None,
     artwork_data: bytes | None,
     mime_type: str,
+    year: int | str | None = None,
 ) -> None:
     try:
         tags = ID3(str(file_path))
@@ -175,6 +221,10 @@ def _tag_mp3(
 
     if track_number is not None:
         tags.add(TRCK(encoding=3, text=str(track_number)))
+
+    if year is not None:
+        tags.add(TYER(encoding=3, text=str(year)))
+        tags.add(TDRC(encoding=3, text=str(year)))
 
     if artwork_data:
         tags.add(
@@ -198,6 +248,7 @@ def _tag_wav(
     track_number: int | None,
     artwork_data: bytes | None,
     mime_type: str,
+    year: int | str | None = None,
 ) -> None:
     audio = WAVE(str(file_path))
     if audio.tags is None:
@@ -209,6 +260,9 @@ def _tag_wav(
 
     if track_number is not None:
         audio.tags.add(TRCK(encoding=3, text=str(track_number)))
+
+    if year is not None:
+        audio.tags.add(TYER(encoding=3, text=str(year)))
 
     if artwork_data:
         audio.tags.add(
@@ -231,6 +285,7 @@ def _tag_m4a(
     album: str,
     track_number: int | None,
     artwork_data: bytes | None,
+    year: int | str | None = None,
 ) -> None:
     audio = MP4(str(file_path))
     audio["\xa9nam"] = [title]
@@ -239,6 +294,9 @@ def _tag_m4a(
 
     if track_number is not None:
         audio["trkn"] = [(track_number, 0)]
+
+    if year is not None:
+        audio["\xa9day"] = [str(year)]
 
     if artwork_data:
         if artwork_data.startswith(b"\x89PNG"):
@@ -263,6 +321,7 @@ def _tag_flac(
     track_number: int | None,
     artwork_data: bytes | None,
     mime_type: str,
+    year: int | str | None = None,
 ) -> None:
     audio = FLAC(str(file_path))
     audio["title"] = [title]
@@ -271,6 +330,9 @@ def _tag_flac(
 
     if track_number is not None:
         audio["tracknumber"] = [str(track_number)]
+
+    if year is not None:
+        audio["date"] = [str(year)]
 
     if artwork_data:
         picture = Picture()
@@ -292,6 +354,7 @@ def _tag_opus(
     track_number: int | None,
     artwork_data: bytes | None,
     mime_type: str,
+    year: int | str | None = None,
 ) -> None:
     audio = OggOpus(str(file_path))
     audio["title"] = [title]
@@ -300,6 +363,9 @@ def _tag_opus(
 
     if track_number is not None:
         audio["tracknumber"] = [str(track_number)]
+
+    if year is not None:
+        audio["date"] = [str(year)]
 
     if artwork_data:
         pic = Picture()

@@ -1,11 +1,11 @@
 # SONORA — PROJECT STATE
 
 **Current Phase:** Phase 5 — Core Product Enhancements
-**Current Feature:** Feature 1 — Download Profiles Implementation (COMPLETED)
-**Baseline Commit:** `0238f5a` (`fix: complete phase 4 sprint 1 hardening`)
+**Current Feature:** Feature 2 — Pre-Download Metadata & Artwork Editor (COMPLETED)
+**Baseline Commit:** `d4e3cd9` (`feat: add download profiles`)
 **Remote:** `https://github.com/SamSurve/SONORA.git`
 **Branch:** `master`
-**Status:** Phase 5 Feature 1 Implemented & Regression Tested — Ready for Review & Checkpoint
+**Status:** Phase 5 Feature 2 Implemented & Verified — Ready for Review & Checkpoint
 
 ---
 
@@ -103,3 +103,34 @@
 | **API Endpoints** | REST endpoints & validation | **COMPLETED** | Added `GET /api/v1/profiles`, added `profile` field with `@field_validator` in `JobSubmitRequest`, and supported `video/mp4` MIME delivery in `app/api/v1/endpoints.py`. |
 | **Frontend UI** | Download Profile selection panel | **COMPLETED** | Added accessible chips with `role="radiogroup"` / `role="radio"` in `index.html`, grid styles in `styles.css`, and selection + keyboard navigation in `app.js`. |
 | **Testing** | Automated regression coverage | **COMPLETED** | Created `tests/test_profiles.py` (17 tests) and added frontend tests in `tests/test_frontend.py`. |
+
+---
+
+## 5. Phase 5 Feature 2 — Metadata & Artwork Editor Matrix
+
+| Component | Feature Specification | Status | Implementation Details |
+| :--- | :--- | :--- | :--- |
+| **Model** | Strongly Validated Override Model | **COMPLETED** | Created `MetadataOverride` in `app/models/metadata.py` with Title, Artist, Album, Year (1000..2100), and Artwork validation. |
+| **Security** | Safe Artwork Decoding & Isolation | **COMPLETED** | Implemented `validate_and_decode_artwork` and `save_artwork_to_isolated_temp` with size limits (10MB), MIME/magic-byte checks (JPEG/PNG/WEBP), and job-scoped scratchpad isolation. |
+| **Precedence** | Tagging Precedence Integration | **COMPLETED** | Updated `_execute_job_pipeline` in `app/services/job_manager.py` enforcing User Override > Scraped yt-dlp > Fallback defaults. |
+| **Tagging** | Year Tagging Support | **COMPLETED** | Extended `tag_audio_file()` in `app/engine/audio_tagger.py` to tag release year across MP3 (TYER/TDRC), M4A (`©day`), FLAC (`date`), Opus (`date`), and WAV. |
+| **API** | Request Contract Extension | **COMPLETED** | Added `metadata_overrides` and `track_overrides` fields with `@field_validator` in `JobSubmitRequest` (`app/api/v1/endpoints.py`). |
+| **Frontend** | Metadata Review & Artwork Editor UI | **COMPLETED** | Added editable Title, Artist, Album, Year fields, drag-and-drop / upload artwork dropzone, restore buttons, and playlist track switching in `index.html`, `styles.css`, and `app.js`. |
+| **Testing** | Comprehensive Automated Test Suite | **COMPLETED** | Created `tests/test_metadata_editor.py` with unit and integration tests covering model validation, artwork security, precedence, tagging, and API delivery. |
+
+---
+
+## 6. Phase 5 Feature 3 — Persistent Download Library & History Matrix
+
+| Component | Feature Specification | Status | Implementation Details |
+| :--- | :--- | :--- | :--- |
+| **Database** | Paginated & Filtered Query Aggregation | **COMPLETED** | Added `list_jobs_paginated()` in `app/db/repository.py` with parameterized search (title/URL/ID), status and profile filtering, pagination limit/offset, and `COUNT(t.id)` track aggregation. |
+| **API / List** | `GET /api/v1/jobs` | **COMPLETED** | Added paginated list endpoint with query filters (`page`, `page_size`, `status`, `profile`, `q`), total items/pages metadata, and internal path redaction. |
+| **API / Detail** | `GET /api/v1/jobs/{id}` | **COMPLETED** | Sanitized error messages, verified storage file existence (`file_available`), generated download link, and included ordered playlist tracks. |
+| **API / Retry** | `POST /api/v1/jobs/{id}/retry` | **COMPLETED** | Added retry/requeue endpoint recreating download jobs with original parameters, rate limiting, and 400 rejection for active in-flight jobs. |
+| **Security** | Internal Path Leak Protection | **COMPLETED** | Redacted raw server `file_path` from API responses; enforced `is_relative_to(settings.COMPLETED_DIR.resolve())` confinement for `file_available` check. |
+| **Frontend UI** | Library Table, Toolbar & Pagination | **COMPLETED** | Added `#library` section in `index.html`, responsive styling in `styles.css`, and search/filter/pagination controller in `app.js`. |
+| **Frontend UX** | Details Modal & Dynamic Actions | **COMPLETED** | Added modal dialog inspecting full job details & tracks, debounced search (300ms) with out-of-order response guard, Purged status indicators, and Retry action buttons. |
+| **Testing** | Comprehensive Automated Test Suite | **COMPLETED** | Created `tests/test_library.py` covering repository aggregation, API pagination, search/filtering, file availability detection, retry guards, and template contracts. |
+
+

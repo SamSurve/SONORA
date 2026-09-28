@@ -7,6 +7,7 @@ real-time progress event streaming, cancellation, and completed file delivery.
 import asyncio
 import json
 import logging
+import math
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -24,8 +25,9 @@ from app.core.constants import (
 )
 from app.core.security import InvalidURLException, SSRFSecurityException
 from app.db.database import get_db_read
-from app.db.repository import get_job, get_tracks_for_job
+from app.db.repository import get_job, get_tracks_for_job, list_jobs_paginated
 from app.engine.ytdlp_engine import ProgressEvent
+from app.models.metadata import MetadataOverride
 from app.services.job_manager import (
     JobManager,
     PlaylistQuotaExceededException,
@@ -88,6 +90,30 @@ class JobSubmitRequest(BaseModel):
         default=None, description="Selected playlist track indices"
     )
     title: str | None = Field(default=None, description="Optional custom title override")
+    metadata_overrides: MetadataOverride | None = Field(
+        default=None,
+        description="Custom metadata and artwork overrides for media item",
+    )
+    track_overrides: dict[int, MetadataOverride] | None = Field(
+        default=None,
+        description="Optional per-track metadata overrides for playlist items",
+    )
+
+    @field_validator("track_overrides", mode="before")
+    @classmethod
+    def validate_track_overrides(cls, v: Any) -> dict[int, Any] | None:
+        if not v:
+            return None
+        if isinstance(v, dict):
+            res: dict[int, Any] = {}
+            for k, val in v.items():
+                try:
+                    int_k = int(k)
+                    res[int_k] = val
+                except (ValueError, TypeError):
+                    raise ValueError(f"Track index key '{k}' must be an integer.") from None
+            return res
+        return v
 
     @field_validator("profile", mode="before")
     @classmethod
@@ -118,6 +144,37 @@ def _sanitize_error_message(msg: str) -> str:
     if "Traceback (most recent call last):" in cleaned:
         cleaned = cleaned.split("Traceback (most recent call last):")[0].strip()
     return cleaned or "Download processing failed."
+
+
+def _check_file_availability(file_path_str: str | None) -> bool:
+    """Verifies that a completed file exists on storage and is confined to COMPLETED_DIR."""
+    if not file_path_str:
+        return False
+    try:
+        resolved_file = Path(file_path_str).resolve()
+        resolved_dir = settings.COMPLETED_DIR.resolve()
+        return (
+            resolved_file.is_relative_to(resolved_dir)
+            and resolved_file.exists()
+            and resolved_file.is_file()
+        )
+    except Exception:
+        return False
+
+
+def _format_job_response(job: dict[str, Any]) -> dict[str, Any]:
+    """Formats a database job record into an API-safe response dictionary."""
+    file_path_str = job.get("file_path")
+    file_available = _check_file_availability(file_path_str)
+
+    res = dict(job)
+    res.pop("file_path", None)
+    res["file_available"] = file_available
+    res["download_url"] = f"/api/v1/downloads/{job['id']}/file" if file_available else None
+    if res.get("error_message"):
+        res["error_message"] = _sanitize_error_message(res["error_message"])
+    return res
+
 
 
 @router.post("/metadata")
@@ -182,6 +239,8 @@ async def create_download_job(payload: JobSubmitRequest, request: Request) -> di
             selected_indices=payload.selected_indices,
             title=payload.title,
             client_id=client_ip,
+            metadata_overrides=payload.metadata_overrides,
+            track_overrides=payload.track_overrides,
         )
         return {
             "status": "success",
@@ -235,6 +294,53 @@ async def create_download_job(payload: JobSubmitRequest, request: Request) -> di
         ) from e
 
 
+@router.get("/jobs")
+async def list_download_jobs(
+    page: int = 1,
+    page_size: int = 20,
+    status: str | None = None,
+    profile: str | None = None,
+    q: str | None = None,
+) -> dict[str, Any]:
+    """Returns a paginated list of download jobs with optional status, profile, and search filters."""
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 20
+    elif page_size > 100:
+        page_size = 100
+
+    offset = (page - 1) * page_size
+
+    with get_db_read() as conn:
+        items, total_count = list_jobs_paginated(
+            conn,
+            limit=page_size,
+            offset=offset,
+            status=status,
+            profile=profile,
+            search_query=q,
+        )
+
+    formatted_items = [_format_job_response(item) for item in items]
+    total_pages = math.ceil(total_count / page_size) if total_count > 0 else 1
+
+    return {
+        "status": "success",
+        "data": {
+            "items": formatted_items,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_items": total_count,
+                "total_pages": total_pages,
+                "has_next": page * page_size < total_count,
+                "has_prev": page > 1,
+            },
+        },
+    }
+
+
 @router.get("/jobs/{job_id}")
 async def get_job_status(job_id: str) -> dict[str, Any]:
     """Retrieves current job status, progress, speed, ETA, and track details."""
@@ -247,12 +353,95 @@ async def get_job_status(job_id: str) -> dict[str, Any]:
             )
         tracks = get_tracks_for_job(conn, job_id)
 
-    # Sanitize error message if present
-    if job.get("error_message"):
-        job["error_message"] = _sanitize_error_message(job["error_message"])
+    formatted_job = _format_job_response(job)
+    formatted_job["tracks"] = tracks
+    return {"status": "success", "data": formatted_job}
 
-    job["tracks"] = tracks
-    return {"status": "success", "data": job}
+
+@router.post("/jobs/{job_id}/retry")
+async def retry_job_execution(job_id: str, request: Request) -> dict[str, Any]:
+    """Requeues a failed, cancelled, or completed job with its original parameters."""
+    with get_db_read() as conn:
+        job = get_job(conn, job_id)
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": ErrorCode.JOB_NOT_FOUND.value, "message": "Job not found"},
+            )
+        tracks = get_tracks_for_job(conn, job_id)
+
+    active_statuses = {
+        JobStatus.QUEUED.value,
+        JobStatus.FETCHING_METADATA.value,
+        JobStatus.DOWNLOADING.value,
+        JobStatus.CONVERTING.value,
+        JobStatus.TAGGING.value,
+    }
+    if job.get("status") in active_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": ErrorCode.INTERNAL_ERROR.value,
+                "message": "Cannot retry a job that is currently active or in progress",
+            },
+        )
+
+    client_ip = extract_client_ip(request)
+    manager = get_job_manager()
+
+    selected_indices = (
+        [t["track_index"] for t in tracks]
+        if (job.get("is_playlist") and tracks)
+        else None
+    )
+
+    try:
+        new_job = manager.submit_job(
+            url=job["url"],
+            target_format=job["format"],
+            quality=job["quality"],
+            profile=job.get("profile", DownloadProfile.STANDARD.value),
+            is_playlist=bool(job.get("is_playlist", 0)),
+            selected_indices=selected_indices,
+            title=job.get("title"),
+            client_ip=client_ip,
+        )
+        return {"status": "success", "data": new_job}
+    except RateLimitExceededException as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={"code": ErrorCode.RATE_LIMIT_EXCEEDED.value, "message": str(e)},
+        ) from e
+    except PlaylistQuotaExceededException as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": ErrorCode.PLAYLIST_TOO_LARGE.value, "message": str(e)},
+        ) from e
+    except StorageLimitExceededException as e:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail={"code": ErrorCode.STORAGE_LIMIT_EXCEEDED.value, "message": str(e)},
+        ) from e
+    except (InvalidURLException, SSRFSecurityException) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": ErrorCode.SSRF_VIOLATION.value
+                if isinstance(e, SSRFSecurityException)
+                else ErrorCode.INVALID_URL.value,
+                "message": str(e),
+            },
+        ) from e
+    except Exception as e:
+        logger.error("Failed to retry download job '%s': %s", job_id, e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": ErrorCode.INTERNAL_ERROR.value,
+                "message": _sanitize_error_message(str(e)),
+            },
+        ) from e
+
 
 
 @router.post("/jobs/{job_id}/cancel")

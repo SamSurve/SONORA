@@ -2,6 +2,50 @@
 
 All notable changes to the SONORA platform are documented in this file.
 
+## [3.7.0-phase5.feature3] - 2026-09-28
+
+### Phase 5 / Feature 3: Persistent Download Library & History
+- **Database Repository Query Aggregation (`app/db/repository.py`):**
+  - Added `list_jobs_paginated()` supporting limit/offset pagination, status filtering, profile filtering, parameterized search matching title/url/id, and `COUNT(t.id) AS track_count` aggregation.
+- **REST Endpoints & Path Confinement Security (`app/api/v1/endpoints.py`):**
+  - Added `GET /api/v1/jobs` delivering paginated job items with pagination metadata (`page`, `page_size`, `total_items`, `total_pages`, `has_next`, `has_prev`).
+  - Redacted internal raw filesystem `file_path` from API payloads to prevent internal server path leakage.
+  - Implemented `_check_file_availability()` with strict `is_relative_to(settings.COMPLETED_DIR.resolve())` confinement, exposing `file_available: bool` and `download_url: str | None`.
+  - Updated `GET /api/v1/jobs/{job_id}` to include sanitized error messages, file availability flags, and ordered playlist tracks.
+  - Added `POST /api/v1/jobs/{job_id}/retry` to safely requeue failed, cancelled, or completed download jobs with preserved parameters and track selections, while guarding against retrying in-flight active jobs.
+- **Frontend UI & Interactive Experience (`app/static/index.html`, `app/static/css/styles.css`, `app/static/js/app.js`):**
+  - Added `#library` section in navigation and main content area.
+  - Implemented search input with 300ms debounce and stale response prevention.
+  - Implemented status and profile filter dropdowns, manual refresh button, and responsive table list view.
+  - Implemented Job Details & Tracklist modal dialog inspecting comprehensive job metadata, error traces, and playlist items.
+  - Added dynamic row actions for direct file downloads, Purged indicators for storage-cleaned jobs, and one-click Retry buttons that switch into downloading state.
+- **Automated Regression Test Suite (`tests/test_library.py`):**
+  - Created test suite verifying repository pagination/filtering/aggregation, API endpoints, file availability checking, retry validation/rate limiting, and frontend template contracts.
+
+## [3.6.0-phase5.feature2] - 2026-09-28
+
+### Phase 5 / Feature 2: Pre-Download Metadata & Artwork Editor
+- **Metadata Override Model (`app/models/metadata.py`):**
+  - Implemented `MetadataOverride` Pydantic model supporting optional `title`, `artist`, `album`, `year` (1000..2100), and `artwork` (base64/data URL).
+  - Implemented ASCII control character stripping preserving international Unicode song titles and artists.
+  - Implemented safe base64 decoding with strict 10MB payload size limits and magic-byte validation (JPEG, PNG, WEBP).
+  - Implemented `save_artwork_to_isolated_temp()` ensuring uploaded images are confined to job-isolated scratchpads.
+- **Audio Tagging Year Support (`app/engine/audio_tagger.py`):**
+  - Added release year tag embedding across all supported audio containers: MP3 (`TYER`/`TDRC`), M4A (`©day`), FLAC (`date`), Opus (`date`), and WAV (`TYER`).
+- **Job Pipeline & Tagging Precedence (`app/services/job_manager.py`):**
+  - Updated `submit_job()`, `_run_job_with_retries()`, and `_execute_job_pipeline()` to accept `metadata_overrides` and `track_overrides`.
+  - Enforced strict metadata precedence: User Override > Scraped yt-dlp Metadata > Default Fallback.
+  - Ensured temporary custom artwork is stored in job-scoped temp directory and cleaned up safely upon job completion, failure, or cancellation.
+- **API Request Contract (`app/api/v1/endpoints.py`):**
+  - Extended `JobSubmitRequest` with optional `metadata_overrides` and `track_overrides` fields while maintaining full backward compatibility with legacy requests.
+- **Frontend Review & Editor UI (`app/static/index.html`, `app/static/css/styles.css`, `app/static/js/app.js`):**
+  - Replaced immediate auto-download flow with interactive Pre-Download Metadata Review & Editor.
+  - Added editable form fields for Track Title, Artist, Album, and Year with Revert to Detected button.
+  - Added interactive Album Cover Dropzone with drag & drop support, file picker, live thumbnail preview, and original artwork restoration.
+  - Added playlist track switching for individual track metadata review while preserving multi-track selection for batch downloads.
+- **Automated Regression Test Suite (`tests/test_metadata_editor.py`):**
+  - Added comprehensive test suite covering validation models, image magic bytes, isolated temp storage, tagging precedence, year embedding, API payloads, and frontend DOM semantics.
+
 ## [3.5.0-phase5.feature1] - 2026-09-28
 
 ### Phase 5 / Feature 1: Download Profiles Implementation

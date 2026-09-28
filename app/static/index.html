@@ -44,7 +44,8 @@
       </a>
 
       <nav class="site-nav" id="site-nav">
-        <a href="#hero" class="nav-link active">Home</a>
+        <a href="#hero" id="nav-downloader" class="nav-link active">Downloader</a>
+        <a href="#library" id="nav-library" class="nav-link">Library</a>
         <a href="#features" class="nav-link">Features</a>
         <a href="#sites" class="nav-link">Supported Sites</a>
         <a href="#faq" class="nav-link">FAQ</a>
@@ -176,24 +177,66 @@
               </div>
             </div>
 
-            <!-- STATE 3: READY -->
+            <!-- STATE 3: READY / METADATA REVIEW & EDITOR -->
             <div id="state-ready" class="ui-state">
-              <div class="media-preview-card">
-                <div class="media-artwork-wrapper">
-                  <img id="ready-artwork" src="" alt="Album Artwork" class="media-artwork" onerror="this.src='/static/img/fallback-artwork.png'">
+              <div class="meta-editor-header">
+                <span id="ready-type-badge" class="type-badge">Single Track</span>
+                <span id="ready-duration" class="meta-duration-pill">0:00</span>
+              </div>
+
+              <div class="meta-editor-layout">
+                <!-- Artwork Section -->
+                <div class="meta-artwork-section">
+                  <div class="media-artwork-wrapper" id="artwork-dropzone" title="Drag & drop or click to upload custom cover art">
+                    <img id="ready-artwork" src="" alt="Album Artwork" class="media-artwork" onerror="this.src='/static/img/fallback-artwork.png'">
+                    <div class="artwork-drop-overlay" id="artwork-drop-overlay">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      <span>Drop image here</span>
+                    </div>
+                  </div>
+                  <input type="file" id="artwork-file-input" accept="image/jpeg,image/png,image/webp" style="display:none;" aria-label="Upload custom album artwork">
+                  <div class="artwork-actions">
+                    <button type="button" id="upload-artwork-btn" class="btn-sm btn-outline" title="Upload custom album cover">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      <span>Upload Cover</span>
+                    </button>
+                    <button type="button" id="reset-artwork-btn" class="btn-sm btn-text-danger" style="display:none;" title="Restore detected thumbnail">Restore</button>
+                  </div>
                 </div>
-                <div class="media-info">
-                  <span id="ready-type-badge" class="type-badge">Single Track</span>
-                  <h3 id="ready-title" class="media-title">Media Title</h3>
-                  <p id="ready-artist" class="media-artist">Artist / Channel</p>
-                  <p id="ready-duration" class="media-duration">0:00</p>
+
+                <!-- Form Fields Section -->
+                <div class="meta-form-section">
+                  <div class="meta-field">
+                    <label for="meta-title" class="meta-label">Track Title</label>
+                    <input type="text" id="meta-title" class="meta-input" placeholder="Track title" maxlength="500" autocomplete="off" spellcheck="false">
+                  </div>
+
+                  <div class="meta-field">
+                    <label for="meta-artist" class="meta-label">Artist / Channel</label>
+                    <input type="text" id="meta-artist" class="meta-input" placeholder="Artist name" maxlength="500" autocomplete="off" spellcheck="false">
+                  </div>
+
+                  <div class="meta-row-fields">
+                    <div class="meta-field meta-field-grow">
+                      <label for="meta-album" class="meta-label">Album</label>
+                      <input type="text" id="meta-album" class="meta-input" placeholder="Album name (optional)" maxlength="500" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="meta-field meta-field-year">
+                      <label for="meta-year" class="meta-label">Year</label>
+                      <input type="number" id="meta-year" class="meta-input" placeholder="YYYY" min="1000" max="2100" autocomplete="off">
+                    </div>
+                  </div>
+
+                  <div class="meta-revert-bar">
+                    <button type="button" id="revert-meta-btn" class="btn-text-subtle" title="Revert all fields to detected metadata">Revert to Detected</button>
+                  </div>
                 </div>
               </div>
 
               <!-- Playlist Track Checklist (Hidden for single tracks) -->
               <div id="playlist-checklist-container" class="playlist-checklist-container" style="display: none;">
                 <div class="checklist-header">
-                  <span>Playlist Items (<span id="selected-count">0</span>/<span id="total-count">0</span>)</span>
+                  <span>Playlist Tracks (<span id="selected-count">0</span>/<span id="total-count">0</span>)</span>
                   <button type="button" id="select-all-btn" class="btn-text">Select All</button>
                 </div>
                 <div id="playlist-items-list" class="playlist-items-list">
@@ -203,7 +246,7 @@
 
               <div class="action-buttons">
                 <button type="button" id="cancel-inspect-btn" class="btn btn-secondary">Go Back</button>
-                <button type="button" id="start-download-btn" class="btn btn-primary">Start Download</button>
+                <button type="button" id="start-download-btn" class="btn btn-primary">Confirm & Download</button>
               </div>
             </div>
 
@@ -280,6 +323,122 @@
         </div>
       </div>
     </section>
+
+    <!-- Library & History Section -->
+    <section id="library" class="section library-section" aria-labelledby="library-heading">
+      <div class="container">
+        <div class="section-header">
+          <div class="badge-pill">
+            <span class="badge-dot"></span>
+            <span>Persistent Media History</span>
+          </div>
+          <h2 id="library-heading" class="section-title">Download Library & History</h2>
+          <p class="section-subtitle">Search, filter, inspect tracklists, and re-download or retry past media jobs.</p>
+        </div>
+
+        <div class="library-card">
+          <!-- Library Toolbar -->
+          <div class="library-toolbar">
+            <div class="library-search-box">
+              <span class="search-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </span>
+              <input type="text" id="library-search" class="input-field library-search-input" placeholder="Search by title, URL, or job ID..." aria-label="Search downloads">
+              <button type="button" id="library-clear-search" class="icon-btn clear-search-btn" title="Clear search" aria-label="Clear search" style="display:none;">&times;</button>
+            </div>
+
+            <div class="library-filters">
+              <div class="filter-group">
+                <label for="library-status-filter" class="filter-label">Status:</label>
+                <select id="library-status-filter" class="select-field filter-select" aria-label="Filter by status">
+                  <option value="">All Statuses</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="cancelled">Cancelled</option>
+                  <option value="downloading">Downloading</option>
+                  <option value="queued">Queued</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+
+              <div class="filter-group">
+                <label for="library-profile-filter" class="filter-label">Profile:</label>
+                <select id="library-profile-filter" class="select-field filter-select" aria-label="Filter by profile">
+                  <option value="">All Profiles</option>
+                  <option value="audiophile">Audiophile</option>
+                  <option value="standard">Standard</option>
+                  <option value="space_saver">Space Saver</option>
+                  <option value="raw_video">Raw Video</option>
+                </select>
+              </div>
+
+              <button type="button" id="library-refresh-btn" class="btn btn-secondary btn-sm refresh-btn" title="Refresh library" aria-label="Refresh library">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Library Table / List Container -->
+          <div class="library-table-wrapper" tabindex="0" role="region" aria-label="Downloads table">
+            <table class="library-table" id="library-table">
+              <thead>
+                <tr>
+                  <th scope="col">Title / Media</th>
+                  <th scope="col">Profile / Format</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Tracks / Size</th>
+                  <th scope="col">Date</th>
+                  <th scope="col" class="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="library-tbody">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+
+            <!-- Loading State -->
+            <div id="library-loading" class="library-state-view" style="display:none;">
+              <div class="spinner-sm"></div>
+              <span>Loading library history...</span>
+            </div>
+
+            <!-- Empty State -->
+            <div id="library-empty" class="library-state-view" style="display:none;">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+              <p class="empty-title">No download history found</p>
+              <p class="empty-subtitle">Items you download will automatically appear here in your personal library.</p>
+            </div>
+          </div>
+
+          <!-- Library Pagination Footer -->
+          <div class="library-pagination" id="library-pagination">
+            <div class="pagination-info" id="pagination-info">Showing 0 of 0 items</div>
+            <div class="pagination-controls">
+              <button type="button" id="pagination-prev" class="btn btn-secondary btn-sm" disabled aria-label="Previous page">← Previous</button>
+              <span id="pagination-current" class="pagination-current-page">Page 1 of 1</span>
+              <button type="button" id="pagination-next" class="btn btn-secondary btn-sm" disabled aria-label="Next page">Next →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Job Details & Tracklist Modal -->
+    <div id="job-details-modal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="modal-job-title">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3 id="modal-job-title" class="modal-title">Job Details</h3>
+          <button type="button" id="modal-close-btn" class="icon-btn modal-close-btn" aria-label="Close details dialog">&times;</button>
+        </div>
+        <div class="modal-body" id="modal-job-body">
+          <!-- Dynamic details content -->
+        </div>
+        <div class="modal-footer" id="modal-job-footer">
+          <button type="button" id="modal-dismiss-btn" class="btn btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Features Section -->
     <section id="features" class="section features-section">

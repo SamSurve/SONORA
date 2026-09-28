@@ -234,3 +234,72 @@ def list_jobs(conn: sqlite3.Connection, limit: int = 50, offset: int = 0) -> lis
     query = "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ? OFFSET ?"
     cursor = conn.execute(query, (limit, offset))
     return [dict(row) for row in cursor.fetchall()]
+
+
+def list_jobs_paginated(
+    conn: sqlite3.Connection,
+    limit: int = 20,
+    offset: int = 0,
+    status: str | None = None,
+    profile: str | None = None,
+    search_query: str | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """Lists jobs with pagination, status/profile filtering, search, and track count aggregation."""
+    where_clauses: list[str] = []
+    params: list[Any] = []
+
+    if status:
+        where_clauses.append("j.status = ?")
+        params.append(status)
+
+    if profile:
+        where_clauses.append("j.profile = ?")
+        params.append(profile)
+
+    if search_query:
+        query_pattern = f"%{search_query.strip()}%"
+        where_clauses.append("(j.title LIKE ? OR j.url LIKE ? OR j.id LIKE ?)")
+        params.extend([query_pattern, query_pattern, query_pattern])
+
+    where_str = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+    # Count total matching records
+    count_sql = f"SELECT COUNT(*) FROM jobs j {where_str}"
+    count_cursor = conn.execute(count_sql, tuple(params))
+    total_count = count_cursor.fetchone()[0]
+
+    # Select page records with aggregated track_count
+    data_sql = f"""
+    SELECT
+        j.id,
+        j.url,
+        j.title,
+        j.format,
+        j.quality,
+        j.profile,
+        j.is_playlist,
+        j.status,
+        j.progress,
+        j.speed,
+        j.eta,
+        j.file_path,
+        j.file_size,
+        j.error_message,
+        j.created_at,
+        j.completed_at,
+        j.expires_at,
+        COUNT(t.id) AS track_count
+    FROM jobs j
+    LEFT JOIN tracks t ON j.id = t.job_id
+    {where_str}
+    GROUP BY j.id
+    ORDER BY j.created_at DESC
+    LIMIT ? OFFSET ?
+    """
+    data_params = list(params)
+    data_params.extend([limit, offset])
+
+    cursor = conn.execute(data_sql, tuple(data_params))
+    rows = [dict(r) for r in cursor.fetchall()]
+    return rows, total_count
+

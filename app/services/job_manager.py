@@ -53,6 +53,10 @@ from app.engine.ytdlp_engine import (
     ProgressEvent,
     execute_download,
 )
+from app.models.metadata import (
+    MetadataOverride,
+    save_artwork_to_isolated_temp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +239,8 @@ class JobManager:
         title: str | None = None,
         client_id: str | None = None,
         profile: DownloadProfile | str = DownloadProfile.STANDARD,
+        metadata_overrides: MetadataOverride | None = None,
+        track_overrides: dict[int, MetadataOverride] | None = None,
     ) -> str:
         """Submits a new download job for execution.
 
@@ -242,7 +248,7 @@ class JobManager:
         2. Validates URL against deep SSRF rules.
         3. Enforces storage disk thresholds.
         4. Initializes job and track state in SQLite.
-        5. Dispatches task to worker pool.
+        5. Dispatches task to worker pool with resolved metadata overrides.
 
         Returns:
             job_id: Generated UUID string for tracking.
@@ -312,6 +318,13 @@ class JobManager:
 
         expires_at = datetime.now(UTC) + timedelta(minutes=settings.JOB_TTL_MINUTES)
 
+        # Determine job title
+        initial_title = (
+            metadata_overrides.title
+            if metadata_overrides and metadata_overrides.title
+            else (title or "Preparing download...")
+        )
+
         # Step 3: Persist Initial State in SQLite using write lock context manager
         with get_db_write() as conn:
             create_job(
@@ -322,9 +335,37 @@ class JobManager:
                 quality=quality_str,
                 profile=resolved_profile.value,
                 is_playlist=is_playlist,
-                title=title or "Preparing download...",
+                title=initial_title,
                 expires_at=expires_at,
             )
+
+        # Save any provided custom artwork into isolated scratchpad
+        temp_dir = get_job_temp_dir(job_id)
+        global_art_path: Path | None = None
+        if metadata_overrides and metadata_overrides.artwork:
+            try:
+                global_art_path = save_artwork_to_isolated_temp(
+                    metadata_overrides.artwork, temp_dir, "custom_artwork_global"
+                )
+            except Exception as e:
+                logger.warning("Failed to save global custom artwork for job '%s': %s", job_id, e)
+
+        track_art_paths: dict[int, Path] = {}
+        if track_overrides:
+            for t_idx, t_ov in track_overrides.items():
+                if t_ov.artwork:
+                    try:
+                        t_path = save_artwork_to_isolated_temp(
+                            t_ov.artwork, temp_dir, f"custom_artwork_track_{t_idx}"
+                        )
+                        track_art_paths[t_idx] = t_path
+                    except Exception as e:
+                        logger.warning(
+                            "Failed to save custom artwork for track %d in job '%s': %s",
+                            t_idx,
+                            job_id,
+                            e,
+                        )
 
         # Step 4: Register Context & Dispatch Worker
         context = JobContext(job_id)
@@ -341,6 +382,10 @@ class JobManager:
             selected_indices=selected_indices,
             context=context,
             profile=resolved_profile,
+            metadata_overrides=metadata_overrides,
+            track_overrides=track_overrides,
+            global_art_path=global_art_path,
+            track_art_paths=track_art_paths,
         )
         context.future = future
 
@@ -436,6 +481,10 @@ class JobManager:
         selected_indices: list[int] | None,
         context: JobContext,
         profile: DownloadProfile | str = DownloadProfile.STANDARD,
+        metadata_overrides: MetadataOverride | None = None,
+        track_overrides: dict[int, MetadataOverride] | None = None,
+        global_art_path: Path | None = None,
+        track_art_paths: dict[int, Path] | None = None,
     ) -> None:
         """Worker wrapper implementing bounded retries with exponential backoff."""
         max_retries = 3
@@ -457,6 +506,10 @@ class JobManager:
                     selected_indices=selected_indices,
                     context=context,
                     profile=profile,
+                    metadata_overrides=metadata_overrides,
+                    track_overrides=track_overrides,
+                    global_art_path=global_art_path,
+                    track_art_paths=track_art_paths,
                 )
                 # Succeeded
                 return
@@ -522,6 +575,10 @@ class JobManager:
         selected_indices: list[int] | None,
         context: JobContext,
         profile: DownloadProfile | str = DownloadProfile.STANDARD,
+        metadata_overrides: MetadataOverride | None = None,
+        track_overrides: dict[int, MetadataOverride] | None = None,
+        global_art_path: Path | None = None,
+        track_art_paths: dict[int, Path] | None = None,
     ) -> None:
         """Executes the full media lifecycle: download -> tag -> package -> complete."""
         temp_dir = get_job_temp_dir(job_id)
@@ -580,12 +637,13 @@ class JobManager:
             )
         )
 
-        # Locate fallback artwork if downloaded
+        # Locate fallback artwork if downloaded by yt-dlp
         default_artwork_path: Path | None = None
-        for img_ext in (".jpg", ".jpeg", ".png"):
+        for img_ext in (".jpg", ".jpeg", ".png", ".webp"):
             for candidate in temp_dir.glob(f"*{img_ext}"):
-                default_artwork_path = candidate
-                break
+                if not candidate.name.startswith("custom_artwork"):
+                    default_artwork_path = candidate
+                    break
             if default_artwork_path:
                 break
 
@@ -613,6 +671,11 @@ class JobManager:
         final_files: list[Path] = []
         album_name = info.get("title") or "Unknown Album"
         uploader = info.get("uploader") or info.get("channel") or "Unknown Artist"
+        scraped_year = info.get("release_year")
+        if scraped_year is None and info.get("upload_date"):
+            date_str = str(info.get("upload_date"))
+            if len(date_str) >= 4 and date_str[:4].isdigit():
+                scraped_year = int(date_str[:4])
 
         for idx, src_file in enumerate(sorted(downloaded_media_files), start=1):
             if context.cancel_event.is_set():
@@ -626,35 +689,90 @@ class JobManager:
             )
             clean_track_title = sanitize_filename(clean_track_title)
 
-            # Match artwork per track by stem or fall back to general artwork
-            track_artwork: Path | None = None
-            for img_ext in (".jpg", ".jpeg", ".png"):
-                candidate = src_file.with_suffix(img_ext)
-                if candidate.exists():
-                    track_artwork = candidate
-                    break
-            if not track_artwork:
-                track_artwork = default_artwork_path
-
-            # Tag audio file
-            tag_audio_file(
-                file_path=src_file,
-                title=clean_track_title,
-                artist=uploader,
-                album=album_name if is_playlist else None,
-                track_number=idx if is_playlist else None,
-                artwork_path=track_artwork,
+            track_num = (
+                selected_indices[idx - 1]
+                if (selected_indices and idx <= len(selected_indices))
+                else idx
             )
+
+            # Resolve per-track or global metadata overrides
+            track_override: MetadataOverride | None = None
+            if track_overrides:
+                track_override = track_overrides.get(track_num) or track_overrides.get(idx)
+
+            user_title: str | None = None
+            if track_override and track_override.title:
+                user_title = track_override.title
+            elif metadata_overrides and metadata_overrides.title and not is_playlist:
+                user_title = metadata_overrides.title
+
+            user_artist: str | None = None
+            if track_override and track_override.artist:
+                user_artist = track_override.artist
+            elif metadata_overrides and metadata_overrides.artist:
+                user_artist = metadata_overrides.artist
+
+            user_album: str | None = None
+            if track_override and track_override.album:
+                user_album = track_override.album
+            elif metadata_overrides and metadata_overrides.album:
+                user_album = metadata_overrides.album
+
+            user_year: int | None = None
+            if track_override and track_override.year is not None:
+                user_year = track_override.year
+            elif metadata_overrides and metadata_overrides.year is not None:
+                user_year = metadata_overrides.year
+
+            # Resolve artwork with precedence:
+            # 1. Per-track custom artwork
+            # 2. Global custom artwork
+            # 3. Downloaded yt-dlp per-track artwork
+            # 4. Downloaded fallback thumbnail
+            custom_track_art: Path | None = None
+            if track_art_paths:
+                custom_track_art = track_art_paths.get(track_num) or track_art_paths.get(idx)
+            if not custom_track_art and global_art_path and global_art_path.exists():
+                custom_track_art = global_art_path
+
+            track_artwork: Path | None = None
+            if custom_track_art and custom_track_art.exists():
+                track_artwork = custom_track_art
+            else:
+                for img_ext in (".jpg", ".jpeg", ".png", ".webp"):
+                    candidate = src_file.with_suffix(img_ext)
+                    if candidate.exists() and not candidate.name.startswith("custom_artwork"):
+                        track_artwork = candidate
+                        break
+                if not track_artwork:
+                    track_artwork = default_artwork_path
+
+            # Resolved final metadata values adhering to precedence
+            final_title = user_title or clean_track_title or "Unknown Title"
+            final_artist = user_artist or uploader or "Unknown Artist"
+            final_album = user_album or (album_name if is_playlist else final_title)
+            final_year = user_year if user_year is not None else scraped_year
 
             # Structure clean, safe destination filename
             safe_dest_name = format_track_filename(
-                title=clean_track_title,
+                title=final_title,
                 extension=src_file.suffix,
-                track_index=idx if is_playlist else None,
+                track_index=track_num if is_playlist else None,
             )
             dest_file = safe_path_join(completed_dir, safe_dest_name)
             shutil.move(src_file, dest_file)
             final_files.append(dest_file)
+
+            # Tag audio file
+            tag_audio_file(
+                file_path=dest_file,
+                title=final_title,
+                artist=final_artist,
+                album=final_album,
+                track_number=track_num if is_playlist else None,
+                artwork_path=track_artwork,
+                year=final_year,
+            )
 
             # Register track in DB
             if is_playlist:
@@ -662,15 +780,22 @@ class JobManager:
                     add_track_to_job(
                         conn=conn,
                         job_id=job_id,
-                        track_index=idx,
-                        track_title=clean_track_title,
+                        track_index=track_num,
+                        track_title=final_title,
                     )
-                    update_track_status(conn, job_id=job_id, track_index=idx, status="completed")
+                    update_track_status(
+                        conn, job_id=job_id, track_index=track_num, status="completed"
+                    )
 
         # Step 3: Archive packaging (Package ZIP for playlists or multi-file downloads)
         final_delivery_path: Path
         if is_playlist or len(final_files) > 1:
-            zip_title = album_name if is_playlist else (info.get("title") or "download")
+            playlist_album = (
+                metadata_overrides.album
+                if metadata_overrides and metadata_overrides.album
+                else album_name
+            )
+            zip_title = playlist_album if is_playlist else (info.get("title") or "download")
             zip_path, zip_size = create_playlist_zip(
                 job_id=job_id,
                 job_completed_dir=completed_dir,
@@ -689,7 +814,11 @@ class JobManager:
             raise DownloadCancelledException("Cancelled before completion.")
 
         # Step 5: Mark Job Completed in SQLite
-        media_title = info.get("title") or final_delivery_path.stem
+        media_title = (
+            metadata_overrides.title
+            if (metadata_overrides and metadata_overrides.title and not is_playlist)
+            else (info.get("title") or final_delivery_path.stem)
+        )
         with get_db_write() as conn:
             update_job_status(
                 conn=conn,
