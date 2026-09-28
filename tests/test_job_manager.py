@@ -265,6 +265,34 @@ class TestCancellationAndRetries:
         assert job_record["status"] == JobStatus.CANCELLED.value
         assert "Job was cancelled by user." in (job_record["error_message"] or "")
 
+    @patch("app.services.job_manager.execute_download")
+    def test_multi_file_non_playlist_job_packages_zip(
+        self, mock_exec: MagicMock, test_job_mgr: JobManager
+    ) -> None:
+        """Verifies MED-04: Non-playlist jobs producing multiple files package into ZIP."""
+        def fake_download(job_id, url, temp_dir, **kwargs):
+            (temp_dir / "Part1.mp3").write_bytes(b"dummy part 1")
+            (temp_dir / "Part2.mp3").write_bytes(b"dummy part 2")
+            return {"title": "Dual Stream Track", "uploader": "Artist"}
+
+        mock_exec.side_effect = fake_download
+        mock_addr = [(2, 1, 6, "", ("142.250.190.46", 443))]
+        with patch("socket.getaddrinfo", return_value=mock_addr):
+            job_id = test_job_mgr.submit_job(
+                url="https://music.youtube.com/watch?v=dualstream",
+                is_playlist=False,
+            )
+
+        context = test_job_mgr._active_jobs.get(job_id)
+        if context and context.future:
+            context.future.result(timeout=5)
+
+        job_record = test_job_mgr.get_job_info(job_id)
+        assert job_record is not None
+        assert job_record["status"] == JobStatus.COMPLETED.value
+        assert job_record["file_path"].endswith(".zip")
+        assert Path(job_record["file_path"]).exists()
+
 
 class TestSecurityAndConcurrencyEnforcement:
     """Tests security gate enforcement and worker pool limits."""

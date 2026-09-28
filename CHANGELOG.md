@@ -2,6 +2,67 @@
 
 All notable changes to the SONORA platform are documented in this file.
 
+## [3.5.0-phase5.feature1] - 2026-09-28
+
+### Phase 5 / Feature 1: Download Profiles Implementation
+- **Core Profile Taxonomy:** Added `DownloadProfile` enum (`audiophile`, `standard`, `space_saver`, `raw_video`) and `PROFILE_TAXONOMY` metadata mapping specifications in `app/core/constants.py`.
+- **Database Schema & Persistence:** Added `profile TEXT NOT NULL DEFAULT 'standard'` column to `jobs` table in `app/db/repository.py:SCHEMA_SQL` and column migration in `init_db(conn)`. Updated `create_job()` to accept and persist `profile`.
+- **Engine / yt-dlp Options Assembly:** Updated `build_ydl_options()` and `execute_download()` in `app/engine/ytdlp_engine.py` to support profile-driven options:
+  - `AUDIOPHILE`: `format="bestaudio/best"`, `preferredcodec="flac"`
+  - `STANDARD`: `format="bestaudio/best"`, `preferredcodec="mp3"`, `preferredquality="320"`
+  - `SPACE_SAVER`: `format="bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio/best"`, `preferredcodec="m4a"`, `preferredquality="128"`
+  - `RAW_VIDEO`: `format="bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"`, `merge_output_format="mp4"`, no audio extraction
+  - Preserved backward compatibility when `profile` is omitted.
+- **Video Packaging & Audio Tagging:**
+  - Expanded `MEDIA_EXTENSIONS` in `app/engine/archive_packager.py` and scratchpad discovery in `app/services/job_manager.py` to support `.mp4`, `.mkv`, and `.webm`.
+  - Added `.mp4` container tagging support in `app/engine/audio_tagger.py:tag_audio_file()`.
+- **API Endpoints & Validation:**
+  - Added `GET /api/v1/profiles` endpoint delivering full profile taxonomy and metadata.
+  - Added `profile` field with `@field_validator` in `JobSubmitRequest` (`app/api/v1/endpoints.py`).
+  - Added `video/mp4` and `video/x-matroska` MIME type handling in `download_job_file`.
+- **Frontend UI & Accessibility:**
+  - Added Download Profile selector chips in `app/static/index.html` with `role="radiogroup"`, `role="radio"`, and dynamic descriptions.
+  - Implemented responsive `.profile-grid` and `.profile-chip` styles in `app/static/css/styles.css`.
+  - Added profile selection, keyboard arrow navigation, and profile inclusion in `/api/v1/jobs` payload in `app/static/js/app.js`.
+- **Automated Tests:**
+  - Created `tests/test_profiles.py` with 17 unit and integration tests.
+  - Added `test_download_profiles_dom_semantics_and_styles` in `tests/test_frontend.py`.
+
+## [3.4.0-phase4.sprint2.batch3] - 2026-09-28
+
+### Medium-Priority Production Hardening
+- **MED-01 (RateLimiter Memory Growth & Pruning):** Added bounded storage (`max_tracked_clients=10000`)
+  and automatic periodic pruning of stale timestamps in `RateLimiter` (`app/services/job_manager.py`),
+  preventing long-term memory bloat. Added unit tests in `tests/test_quota_enforcement.py`.
+- **MED-02 (ID3v2.3 MP3 Windows Explorer Compatibility):** Configured `v2_version=3` when saving MP3
+  metadata in `app/engine/audio_tagger.py:_tag_mp3()`, resolving ID3v2.4 parsing incompatibility in
+  Windows Explorer and legacy players. Added regression test in `tests/test_audio_tagger.py`.
+- **MED-03 (WAV RIFF/ID3 Tagging Support):** Implemented `_tag_wav()` using `mutagen.wave.WAVE` and
+  ID3 chunks in `app/engine/audio_tagger.py`, embedding Title, Artist, Album, and Cover Art into WAV
+  downloads. Added regression test in `tests/test_audio_tagger.py`.
+- **MED-04 (Multi-File Non-Playlist ZIP Packaging):** Updated `_execute_job_pipeline()` in
+  `app/services/job_manager.py` to automatically package all generated audio files into a ZIP archive
+  whenever `is_playlist or len(final_files) > 1`. Added regression test in `tests/test_job_manager.py`.
+- **MED-05 (Browser Favicon & 404 Prevention):** Created modern brand SVG favicon
+  `app/static/img/favicon.svg`, linked it in `app/static/index.html`, and added `/favicon.ico` route
+  in `app/main.py`. Added regression test in `tests/test_frontend.py`.
+- **MED-06 (URL Input Accessibility & Screen Reader Label):** Added `<label for="url-input" class="sr-only">`,
+  `aria-label`, and `.sr-only` CSS utility in `index.html` and `styles.css`. Added regression test
+  in `tests/test_frontend.py`.
+- **MED-07 (Format Chips Radiogroup Semantics & Arrow Navigation):** Added `role="radiogroup"`,
+  `role="radio"`, and `aria-checked` to format options in `index.html`. Implemented arrow key navigation
+  (`ArrowRight`, `ArrowLeft`, `ArrowDown`, `ArrowUp`) and roving `tabindex` in `app/static/js/app.js`.
+  Added regression test in `tests/test_frontend.py`.
+- **MED-08 (Dynamic Status & Error ARIA Live Regions):** Added `role="status"` and `aria-live="polite"`
+  on `#dl-status-text` and `#progress-percent`, `role="progressbar"` on `#progress-bar-track`, and
+  `role="alert"` / `aria-live="assertive"` on `#error-message`. Added test in `tests/test_frontend.py`.
+- **MED-09 (Uncapped Metadata Extraction Cap):** Added `"playlistend": settings.MAX_PLAYLIST_ITEMS` in
+  `extract_media_info()` (`app/engine/ytdlp_engine.py`), guarding against memory exhaustion on large
+  playlists. Added test in `tests/test_metadata_service.py`.
+- **MED-10 (Dark Mode Depth & Elevation Tokens):** Added `--shadow-sm/md/lg` tokens and
+  `color-scheme: dark;` to `[data-theme="dark"]` in `app/static/css/styles.css`. Added regression test
+  in `tests/test_frontend.py`.
+
 ## [3.3.0-phase4.sprint2.batch2] - 2026-09-27
 
 ### High-Priority Security & Edge Case Hardening

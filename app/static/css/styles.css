@@ -81,6 +81,11 @@
   --success-bg: #052E16;
   --success-text: #86EFAC;
   --success-border: #166534;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
 }
 
 /* ==========================================================================
@@ -121,6 +126,19 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent-violet);
   outline-offset: 3px;
+}
+
+/* Accessibility Screen Reader Utility (MED-06) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* ==========================================================================
@@ -531,9 +549,47 @@ body {
   cursor: pointer;
 }
 
+/* Download Profile Selection Panel */
+.profile-selection-panel {
+  margin-top: 1.5rem;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+}
+
+.profile-chip {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.6rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.profile-chip:hover {
+  border-color: var(--border-hover);
+}
+
+.profile-chip.active {
+  border-color: var(--accent-violet);
+  background-color: var(--accent-subtle);
+}
+
+.profile-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.6rem;
+}
+
 /* Format Grid */
 .format-selection-panel {
-  margin-top: 1.5rem;
+  margin-top: 1.25rem;
 }
 
 .panel-label {

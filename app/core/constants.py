@@ -96,6 +96,67 @@ AUDIO_TAXONOMY: dict[AudioFormat, AudioSemantics] = {
 }
 
 
+class DownloadProfile(str, Enum):
+    """Supported user-selectable download profiles."""
+
+    AUDIOPHILE = "audiophile"
+    STANDARD = "standard"
+    SPACE_SAVER = "space_saver"
+    RAW_VIDEO = "raw_video"
+
+
+class ProfileSemantics(NamedTuple):
+    """Accurate description of a download profile's media specifications."""
+
+    name: str
+    display_name: str
+    description: str
+    extension: str
+    is_video: bool
+    audio_format: AudioFormat | str
+    bitrate_kbps: str | None
+
+
+PROFILE_TAXONOMY: dict[DownloadProfile, ProfileSemantics] = {
+    DownloadProfile.AUDIOPHILE: ProfileSemantics(
+        name="audiophile",
+        display_name="Audiophile",
+        description="Lossless FLAC extraction preserving original source acoustic quality.",
+        extension="flac",
+        is_video=False,
+        audio_format=AudioFormat.FLAC,
+        bitrate_kbps=None,
+    ),
+    DownloadProfile.STANDARD: ProfileSemantics(
+        name="standard",
+        display_name="Standard",
+        description="Universal compatibility MP3 transcode at 320 kbps CBR.",
+        extension="mp3",
+        is_video=False,
+        audio_format=AudioFormat.MP3_320,
+        bitrate_kbps="320",
+    ),
+    DownloadProfile.SPACE_SAVER: ProfileSemantics(
+        name="space_saver",
+        display_name="Space Saver",
+        description="Lightweight and efficient M4A/AAC audio transcode at 128 kbps.",
+        extension="m4a",
+        is_video=False,
+        audio_format="m4a",
+        bitrate_kbps="128",
+    ),
+    DownloadProfile.RAW_VIDEO: ProfileSemantics(
+        name="raw_video",
+        display_name="Raw Video",
+        description="Preserves full video and audio stream in an MP4 container.",
+        extension="mp4",
+        is_video=True,
+        audio_format="mp4",
+        bitrate_kbps=None,
+    ),
+}
+
+
 class JobStatus(str, Enum):
     """Lifecycle states for download and conversion jobs."""
 

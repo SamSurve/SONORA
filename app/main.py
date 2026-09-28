@@ -105,6 +105,15 @@ async def read_root() -> Response:
     )
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> Response:
+    """Serves the SONORA browser favicon, preventing 404 logging."""
+    favicon_path = static_dir / "img" / "favicon.svg"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/svg+xml")
+    return Response(status_code=204)
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Global exception handler ensuring zero unhandled stack trace leakage."""

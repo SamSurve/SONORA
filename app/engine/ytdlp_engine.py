@@ -14,7 +14,7 @@ from typing import Any
 import yt_dlp
 
 from app.core.config import settings
-from app.core.constants import AudioFormat
+from app.core.constants import AudioFormat, DownloadProfile
 from app.core.security import validate_redirect, validate_url
 from app.engine.ffmpeg_locator import get_ffmpeg_path
 
@@ -104,15 +104,16 @@ class ProgressEvent:
 def build_ydl_options(
     job_id: str,
     temp_dir: Path,
-    target_format: AudioFormat | str,
+    target_format: AudioFormat | str = AudioFormat.MP3_320,
     is_playlist: bool = False,
     selected_indices: list[int] | None = None,
     progress_callback: Callable[[ProgressEvent], None] | None = None,
     cancel_event: threading.Event | None = None,
+    profile: DownloadProfile | str | None = None,
 ) -> dict[str, Any]:
     """Assembles safe, deterministic yt-dlp options.
 
-    Configures audio extraction, output templates, progress hooks, and cancellation checks.
+    Configures audio/video extraction, output templates, progress hooks, and cancellation checks.
     """
     ffmpeg_bin = get_ffmpeg_path()
     format_str = (
@@ -175,9 +176,18 @@ def build_ydl_options(
                 percent=95.0,
                 speed_bytes=0.0,
                 eta_seconds=0,
-                current_track="Audio processing in progress",
+                current_track="Media processing in progress",
             )
             progress_callback(event)
+
+    prof_enum: DownloadProfile | None = None
+    if isinstance(profile, DownloadProfile):
+        prof_enum = profile
+    elif isinstance(profile, str):
+        try:
+            prof_enum = DownloadProfile(profile.strip().lower())
+        except ValueError:
+            prof_enum = None
 
     # Format selection and postprocessors
     postprocessors: list[dict[str, Any]] = []
@@ -191,47 +201,79 @@ def build_ydl_options(
         }
     )
 
-    format_selector = "bestaudio/best"
+    merge_output_format: str | None = None
 
-    if "mp3" in format_str:
-        quality = "256" if "256" in format_str else ("0" if "vbr" in format_str else "320")
-        postprocessors.append(
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": quality,
-            }
-        )
-    elif "flac" in format_str:
+    if prof_enum == DownloadProfile.AUDIOPHILE:
+        format_selector = "bestaudio/best"
         postprocessors.append(
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "flac",
             }
         )
-    elif "opus" in format_str or "native_opus" in format_str:
-        format_selector = "bestaudio[ext=webm]/bestaudio[acodec=opus]/bestaudio"
+    elif prof_enum == DownloadProfile.STANDARD:
+        format_selector = "bestaudio/best"
         postprocessors.append(
             {
                 "key": "FFmpegExtractAudio",
-                "preferredcodec": "opus",
+                "preferredcodec": "mp3",
+                "preferredquality": "320",
             }
         )
-    elif "m4a" in format_str or "native_m4a" in format_str:
-        format_selector = "bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio"
+    elif prof_enum == DownloadProfile.SPACE_SAVER:
+        format_selector = "bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio/best"
         postprocessors.append(
             {
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "m4a",
+                "preferredquality": "128",
             }
         )
-    elif "wav" in format_str:
-        postprocessors.append(
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "wav",
-            }
-        )
+    elif prof_enum == DownloadProfile.RAW_VIDEO:
+        format_selector = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
+        merge_output_format = "mp4"
+    else:
+        # Fallback to target_format string inspection for backward compatibility
+        format_selector = "bestaudio/best"
+        if "mp3" in format_str:
+            quality = "256" if "256" in format_str else ("0" if "vbr" in format_str else "320")
+            postprocessors.append(
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": quality,
+                }
+            )
+        elif "flac" in format_str:
+            postprocessors.append(
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "flac",
+                }
+            )
+        elif "opus" in format_str or "native_opus" in format_str:
+            format_selector = "bestaudio[ext=webm]/bestaudio[acodec=opus]/bestaudio"
+            postprocessors.append(
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "opus",
+                }
+            )
+        elif "m4a" in format_str or "native_m4a" in format_str:
+            format_selector = "bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio"
+            postprocessors.append(
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "m4a",
+                }
+            )
+        elif "wav" in format_str:
+            postprocessors.append(
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "wav",
+                }
+            )
 
     opts: dict[str, Any] = {
         "format": format_selector,
@@ -250,6 +292,9 @@ def build_ydl_options(
         "postprocessors": postprocessors,
     }
 
+    if merge_output_format:
+        opts["merge_output_format"] = merge_output_format
+
     if is_playlist and selected_indices is not None:
         if len(selected_indices) == 0:
             opts["playlist_items"] = "0"
@@ -263,11 +308,12 @@ def execute_download(
     job_id: str,
     url: str,
     temp_dir: Path,
-    target_format: AudioFormat | str,
+    target_format: AudioFormat | str = AudioFormat.MP3_320,
     is_playlist: bool = False,
     selected_indices: list[int] | None = None,
     progress_callback: Callable[[ProgressEvent], None] | None = None,
     cancel_event: threading.Event | None = None,
+    profile: DownloadProfile | str | None = None,
 ) -> dict[str, Any]:
     """Executes media extraction and download within an isolated scratchpad.
 
@@ -287,6 +333,7 @@ def execute_download(
         selected_indices=selected_indices,
         progress_callback=progress_callback,
         cancel_event=cancel_event,
+        profile=profile,
     )
 
     with yt_dlp.YoutubeDL(opts) as ydl:
@@ -302,6 +349,7 @@ def extract_media_info(url: str, is_playlist: bool = False) -> dict[str, Any]:
         "no_warnings": True,
         "extract_flat": "in_playlist" if is_playlist else True,
         "skip_download": True,
+        "playlistend": settings.MAX_PLAYLIST_ITEMS,
         "socket_timeout": settings.SOCKET_TIMEOUT,
         "allowed_protocols": ["http", "https"],
     }

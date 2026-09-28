@@ -3,6 +3,7 @@
 Verifies MAX_PLAYLIST_ITEMS enforcement and client_id rate limiting in JobManager.
 """
 
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,6 +12,7 @@ from app.services.job_manager import (
     JobManager,
     PlaylistQuotaExceededException,
     RateLimitExceededException,
+    RateLimiter,
 )
 
 
@@ -69,3 +71,28 @@ def test_client_id_rate_limiting_enforcement() -> None:
             assert other_job_id is not None
     finally:
         job_mgr.shutdown(wait=True)
+
+
+def test_rate_limiter_stale_history_pruning() -> None:
+    """Verifies MED-01: Inactive client history keys are pruned upon window expiration."""
+    limiter = RateLimiter(max_requests=5, window_seconds=10)
+
+    # Seed client with timestamp older than window
+    limiter._history["stale_client_1"] = [100.0]
+    limiter._history["active_client"] = [time.time()]
+
+    # Explicit prune
+    limiter.prune(force=True)
+
+    assert "stale_client_1" not in limiter._history
+    assert "active_client" in limiter._history
+
+
+def test_rate_limiter_capacity_bounding() -> None:
+    """Verifies MED-01: RateLimiter bounds total tracked clients to max_tracked_clients."""
+    limiter = RateLimiter(max_requests=5, window_seconds=60, max_tracked_clients=10)
+
+    for i in range(25):
+        limiter.is_allowed(f"client_{i}")
+
+    assert len(limiter._history) <= 10

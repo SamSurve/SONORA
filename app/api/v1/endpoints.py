@@ -13,10 +13,15 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.config import settings
-from app.core.constants import ErrorCode, JobStatus
+from app.core.constants import (
+    PROFILE_TAXONOMY,
+    DownloadProfile,
+    ErrorCode,
+    JobStatus,
+)
 from app.core.security import InvalidURLException, SSRFSecurityException
 from app.db.database import get_db_read
 from app.db.repository import get_job, get_tracks_for_job
@@ -74,11 +79,30 @@ class JobSubmitRequest(BaseModel):
     url: str = Field(..., description="Target media URL")
     format: str = Field(default="mp3_320", description="Selected audio format code")
     quality: str = Field(default="320", description="Quality selection string")
+    profile: DownloadProfile | str = Field(
+        default=DownloadProfile.STANDARD,
+        description="Download profile (audiophile, standard, space_saver, raw_video)",
+    )
     is_playlist: bool = Field(default=False, description="Whether job is a playlist")
     selected_indices: list[int] | None = Field(
         default=None, description="Selected playlist track indices"
     )
     title: str | None = Field(default=None, description="Optional custom title override")
+
+    @field_validator("profile", mode="before")
+    @classmethod
+    def validate_profile(cls, v: Any) -> DownloadProfile:
+        if isinstance(v, DownloadProfile):
+            return v
+        if isinstance(v, str):
+            val = v.strip().lower()
+            try:
+                return DownloadProfile(val)
+            except ValueError:
+                valid_names = ", ".join(p.value for p in DownloadProfile)
+                msg = f"Unsupported profile '{v}'. Must be one of: {valid_names}."
+                raise ValueError(msg) from None
+        return DownloadProfile.STANDARD
 
 
 def _sanitize_error_message(msg: str) -> str:
@@ -153,6 +177,7 @@ async def create_download_job(payload: JobSubmitRequest, request: Request) -> di
             url=payload.url,
             target_format=payload.format,
             quality=payload.quality,
+            profile=payload.profile,
             is_playlist=payload.is_playlist,
             selected_indices=payload.selected_indices,
             title=payload.title,
@@ -440,9 +465,30 @@ async def download_job_file(job_id: str) -> Response:
         media_type = "audio/flac"
     elif filename.endswith(".wav"):
         media_type = "audio/wav"
+    elif filename.endswith(".mp4"):
+        media_type = "video/mp4"
+    elif filename.endswith(".mkv"):
+        media_type = "video/x-matroska"
 
     return FileResponse(
         path=resolved_file,
         filename=filename,
         media_type=media_type,
     )
+
+
+@router.get("/profiles")
+async def list_download_profiles() -> dict[str, Any]:
+    """Returns available download profiles with descriptive metadata."""
+    profiles = [
+        {
+            "id": p.value,
+            "display_name": sem.display_name,
+            "description": sem.description,
+            "extension": sem.extension,
+            "is_video": sem.is_video,
+            "bitrate_kbps": sem.bitrate_kbps,
+        }
+        for p, sem in PROFILE_TAXONOMY.items()
+    ]
+    return {"status": "success", "data": profiles}

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     title TEXT,
     format TEXT NOT NULL,
     quality TEXT NOT NULL,
+    profile TEXT NOT NULL DEFAULT 'standard',
     is_playlist INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'queued',
     progress INTEGER NOT NULL DEFAULT 0,
@@ -51,11 +52,13 @@ def init_db(conn: sqlite3.Connection) -> None:
     """Idempotently executes table creation, index setup, and column migrations."""
     conn.executescript(SCHEMA_SQL)
 
-    # Check for is_playlist column in existing databases and migrate if missing
+    # Check for is_playlist and profile columns in existing databases and migrate if missing
     cursor = conn.execute("PRAGMA table_info(jobs);")
     columns = {row[1] for row in cursor.fetchall()}
     if "is_playlist" not in columns:
         conn.execute("ALTER TABLE jobs ADD COLUMN is_playlist INTEGER NOT NULL DEFAULT 0;")
+    if "profile" not in columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN profile TEXT NOT NULL DEFAULT 'standard';")
 
     # Ensure unique index exists on tracks(job_id, track_index) for legacy databases (HIGH-05)
     conn.execute(
@@ -72,6 +75,7 @@ def create_job(
     is_playlist: bool = False,
     title: str | None = None,
     expires_at: datetime | None = None,
+    profile: str = "standard",
 ) -> dict[str, Any]:
     """Inserts a new job record."""
     now = datetime.now(UTC).isoformat()
@@ -80,12 +84,24 @@ def create_job(
 
     query = """
     INSERT INTO jobs (
-        id, url, title, format, quality, is_playlist, status, progress, created_at, expires_at
+        id, url, title, format, quality, profile, is_playlist,
+        status, progress, created_at, expires_at
     )
-    VALUES (?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?)
     """
     conn.execute(
-        query, (job_id, url, title, target_format, quality, playlist_int, now, expires_str)
+        query,
+        (
+            job_id,
+            url,
+            title,
+            target_format,
+            quality,
+            profile,
+            playlist_int,
+            now,
+            expires_str,
+        ),
     )
     return get_job(conn, job_id)  # type: ignore[return-value]
 

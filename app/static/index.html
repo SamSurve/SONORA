@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SONORA — Modern Music Downloader</title>
   <meta name="description" content="Fast, clean, and free modern music downloader utility. Your music, everywhere.">
+  <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+  <link rel="alternate icon" href="/favicon.ico">
 
   <!-- Inter & Editorial Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -97,45 +99,70 @@
             <div id="state-idle" class="ui-state active">
               <form id="download-form" onsubmit="return false;">
                 <div class="input-group">
-                  <span class="input-icon">
+                  <label for="url-input" class="sr-only">Media URL to download</label>
+                  <span class="input-icon" aria-hidden="true">
                     <svg width="20" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                   </span>
-                  <input type="text" id="url-input" class="url-input" placeholder="Paste music or video link here..." autocomplete="off" spellcheck="false" required>
+                  <input type="text" id="url-input" class="url-input" placeholder="Paste music or video link here..." autocomplete="off" spellcheck="false" aria-label="Media URL to download" required>
                   <button type="button" id="clear-btn" class="clear-btn" title="Clear input" aria-label="Clear">✕</button>
                   <button type="submit" id="submit-btn" class="btn btn-primary submit-btn">Inspect</button>
                 </div>
               </form>
 
+              <!-- Download Profile Selection Panel -->
+              <div class="profile-selection-panel">
+                <span id="profile-label" class="panel-label">Download Profile:</span>
+                <div class="profile-grid" role="radiogroup" aria-labelledby="profile-label">
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="profile-chip" data-profile="audiophile">
+                    <span class="chip-name">Audiophile</span>
+                    <span class="chip-desc">Lossless FLAC</span>
+                  </button>
+                  <button type="button" role="radio" aria-checked="true" tabindex="0" class="profile-chip active" data-profile="standard">
+                    <span class="chip-name">Standard</span>
+                    <span class="chip-desc">MP3 320 kbps</span>
+                  </button>
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="profile-chip" data-profile="space_saver">
+                    <span class="chip-name">Space Saver</span>
+                    <span class="chip-desc">M4A 128 kbps</span>
+                  </button>
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="profile-chip" data-profile="raw_video">
+                    <span class="chip-name">Raw Video</span>
+                    <span class="chip-desc">MP4 Video</span>
+                  </button>
+                </div>
+                <p class="profile-note" id="profile-note" aria-live="polite">Universal compatibility MP3 transcode at 320 kbps CBR.</p>
+              </div>
+
               <!-- Format & Quality Selection Panel -->
               <div class="format-selection-panel">
-                <label class="panel-label">Target Audio Format & Quality:</label>
-                <div class="format-grid">
-                  <button type="button" class="format-chip active" data-format="mp3_320" data-quality="320">
+                <span id="format-label" class="panel-label">Advanced Audio Format:</span>
+                <div class="format-grid" role="radiogroup" aria-labelledby="format-label">
+                  <button type="button" role="radio" aria-checked="true" tabindex="0" class="format-chip active" data-format="mp3_320" data-quality="320">
                     <span class="chip-name">MP3 320k</span>
                     <span class="chip-desc">High Compatibility</span>
                   </button>
-                  <button type="button" class="format-chip" data-format="m4a" data-quality="best">
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="format-chip" data-format="m4a" data-quality="best">
                     <span class="chip-name">M4A (AAC)</span>
                     <span class="chip-desc">Direct Stream Copy</span>
                   </button>
-                  <button type="button" class="format-chip" data-format="opus" data-quality="best">
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="format-chip" data-format="opus" data-quality="best">
                     <span class="chip-name">Opus</span>
                     <span class="chip-desc">Direct Stream Copy</span>
                   </button>
-                  <button type="button" class="format-chip" data-format="flac" data-quality="lossless">
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="format-chip" data-format="flac" data-quality="lossless">
                     <span class="chip-name">FLAC</span>
                     <span class="chip-desc">Lossless Container</span>
                   </button>
-                  <button type="button" class="format-chip" data-format="mp3_256" data-quality="256">
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="format-chip" data-format="mp3_256" data-quality="256">
                     <span class="chip-name">MP3 256k</span>
                     <span class="chip-desc">Balanced Storage</span>
                   </button>
-                  <button type="button" class="format-chip" data-format="mp3_vbr" data-quality="v0">
+                  <button type="button" role="radio" aria-checked="false" tabindex="-1" class="format-chip" data-format="mp3_vbr" data-quality="v0">
                     <span class="chip-name">MP3 VBR V0</span>
                     <span class="chip-desc">Perceptual Opt</span>
                   </button>
                 </div>
-                <p class="quality-note" id="quality-note">Direct Stream Copy preserves raw source stream without lossy re-encoding.</p>
+                <p class="quality-note" id="quality-note" aria-live="polite">Direct Stream Copy preserves raw source stream without lossy re-encoding.</p>
               </div>
             </div>
 
@@ -187,16 +214,16 @@
                   <img id="dl-artwork" src="" alt="Artwork" class="mini-artwork">
                   <div class="mini-info">
                     <h4 id="dl-title" class="mini-title">Track Title</h4>
-                    <p id="dl-status-text" class="mini-status">Downloading audio stream...</p>
+                    <p id="dl-status-text" class="mini-status" role="status" aria-live="polite">Downloading audio stream...</p>
                   </div>
                 </div>
 
                 <div class="progress-bar-container">
-                  <div class="progress-bar-track">
+                  <div class="progress-bar-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="progress-bar-track">
                     <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
                   </div>
                   <div class="progress-metrics">
-                    <span id="progress-percent" class="metric-percent">0%</span>
+                    <span id="progress-percent" class="metric-percent" aria-live="polite">0%</span>
                     <div class="metrics-right">
                       <span id="dl-speed" class="metric">0.0 MB/s</span>
                       <span id="dl-eta" class="metric">ETA: --s</span>
@@ -209,7 +236,7 @@
             </div>
 
             <!-- STATE 5: COMPLETED -->
-            <div id="state-completed" class="ui-state">
+            <div id="state-completed" class="ui-state" role="status" aria-live="polite">
               <div class="success-card">
                 <div class="success-icon">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -235,13 +262,13 @@
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
                 </div>
                 <h3>Download Failed</h3>
-                <p id="error-message" class="error-message">An unexpected error occurred.</p>
+                <p id="error-message" class="error-message" role="alert" aria-live="assertive">An unexpected error occurred.</p>
                 <button type="button" id="error-retry-btn" class="btn btn-primary">Try Again</button>
               </div>
             </div>
 
             <!-- STATE 7: CANCELLED -->
-            <div id="state-cancelled" class="ui-state">
+            <div id="state-cancelled" class="ui-state" role="status" aria-live="polite">
               <div class="notice-card">
                 <h3>Job Cancelled</h3>
                 <p>The download was cancelled safely without saving temporary files.</p>

@@ -23,6 +23,7 @@
   // Application State Context
   const context = {
     currentState: States.IDLE,
+    selectedProfile: 'standard',
     targetFormat: 'mp3_320',
     quality: '320',
     metadata: null,
@@ -50,6 +51,8 @@
     elements.submitBtn = document.getElementById('submit-btn');
     elements.cancelInspectingBtn = document.getElementById('cancel-inspecting-btn');
     elements.downloadForm = document.getElementById('download-form');
+    elements.profileChips = document.querySelectorAll('.profile-chip');
+    elements.profileNote = document.getElementById('profile-note');
     elements.formatChips = document.querySelectorAll('.format-chip');
     elements.qualityNote = document.getElementById('quality-note');
 
@@ -129,23 +132,115 @@
     }, duration);
   }
 
-  // Format & Quality Selection Panel Handler
-  function initFormatSelection() {
-    elements.formatChips.forEach((chip) => {
+  // Download Profile Selection Panel Handler
+  const profileNotes = {
+    audiophile: 'Lossless FLAC extraction preserving original source acoustic quality.',
+    standard: 'Universal compatibility MP3 transcode at 320 kbps CBR.',
+    space_saver: 'Lightweight and efficient M4A/AAC audio transcode at 128 kbps.',
+    raw_video: 'Preserves full video and audio stream in an MP4 container.',
+  };
+
+  function selectProfileChip(chip) {
+    if (!elements.profileChips) return;
+    elements.profileChips.forEach((c) => {
+      c.classList.remove('active');
+      c.setAttribute('aria-checked', 'false');
+      c.setAttribute('tabindex', '-1');
+    });
+    chip.classList.add('active');
+    chip.setAttribute('aria-checked', 'true');
+    chip.setAttribute('tabindex', '0');
+
+    const profile = chip.getAttribute('data-profile') || 'standard';
+    context.selectedProfile = profile;
+
+    if (elements.profileNote && profileNotes[profile]) {
+      elements.profileNote.textContent = profileNotes[profile];
+    }
+  }
+
+  function initProfileSelection() {
+    if (!elements.profileChips || elements.profileChips.length === 0) return;
+    const chips = Array.from(elements.profileChips);
+    chips.forEach((chip, index) => {
       chip.addEventListener('click', () => {
-        elements.formatChips.forEach((c) => c.classList.remove('active'));
-        chip.classList.add('active');
+        selectProfileChip(chip);
+      });
 
-        context.targetFormat = chip.getAttribute('data-format');
-        context.quality = chip.getAttribute('data-quality');
+      chip.addEventListener('keydown', (e) => {
+        let nextIndex = null;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          nextIndex = (index + 1) % chips.length;
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          nextIndex = (index - 1 + chips.length) % chips.length;
+        } else if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          selectProfileChip(chip);
+          return;
+        }
+        if (nextIndex !== null) {
+          chips[nextIndex].focus();
+          selectProfileChip(chips[nextIndex]);
+        }
+      });
+    });
+  }
 
-        const desc = chip.querySelector('.chip-desc')?.textContent || '';
-        if (context.targetFormat.startsWith('native_') || context.targetFormat === 'm4a' || context.targetFormat === 'opus') {
-          elements.qualityNote.textContent = 'Direct Stream Copy preserves raw source audio without re-encoding loss.';
-        } else if (context.targetFormat === 'flac') {
-          elements.qualityNote.textContent = 'Encapsulates source audio into a FLAC lossless container without upscaling.';
-        } else {
-          elements.qualityNote.textContent = 'Transcodes audio to universal MP3 format for broad playback support.';
+  // Format & Quality Selection Panel Handler (MED-07 Keyboard & Radio Semantics)
+  function selectFormatChip(chip) {
+    elements.formatChips.forEach((c) => {
+      c.classList.remove('active');
+      c.setAttribute('aria-checked', 'false');
+      c.setAttribute('tabindex', '-1');
+    });
+    chip.classList.add('active');
+    chip.setAttribute('aria-checked', 'true');
+    chip.setAttribute('tabindex', '0');
+
+    context.targetFormat = chip.getAttribute('data-format');
+    context.quality = chip.getAttribute('data-quality');
+
+    if (
+      context.targetFormat.startsWith('native_') ||
+      context.targetFormat === 'm4a' ||
+      context.targetFormat === 'opus'
+    ) {
+      elements.qualityNote.textContent =
+        'Direct Stream Copy preserves raw source audio without re-encoding loss.';
+    } else if (context.targetFormat === 'flac') {
+      elements.qualityNote.textContent =
+        'Encapsulates source audio into a FLAC lossless container without upscaling.';
+    } else {
+      elements.qualityNote.textContent =
+        'Transcodes audio to universal MP3 format for broad playback support.';
+    }
+  }
+
+  function initFormatSelection() {
+    const chips = Array.from(elements.formatChips);
+    chips.forEach((chip, index) => {
+      chip.addEventListener('click', () => {
+        selectFormatChip(chip);
+      });
+
+      chip.addEventListener('keydown', (e) => {
+        let nextIndex = null;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          nextIndex = (index + 1) % chips.length;
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          nextIndex = (index - 1 + chips.length) % chips.length;
+        } else if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          selectFormatChip(chip);
+          return;
+        }
+        if (nextIndex !== null) {
+          chips[nextIndex].focus();
+          selectFormatChip(chips[nextIndex]);
         }
       });
     });
@@ -389,6 +484,7 @@
         url: context.metadata.url,
         format: context.targetFormat,
         quality: context.quality,
+        profile: context.selectedProfile || 'standard',
         is_playlist: context.metadata.is_playlist,
         selected_indices: context.selectedTrackIndices,
         title: context.metadata.title,
@@ -706,6 +802,7 @@
     initTheme();
     initStartupAnimation();
     initNavigation();
+    initProfileSelection();
     initFormatSelection();
     initInputHandlers();
     bindActionListeners();

@@ -114,6 +114,8 @@ class TestMetadataAndArtworkTagging:
         assert success is True
         assert mock_id3.add.called
         assert mock_id3.save.called
+        # Verify MED-02: v2_version=3 enforced for Windows Explorer compatibility
+        assert mock_id3.save.call_args[1].get("v2_version") == 3
 
     @patch("app.engine.audio_tagger.FLAC")
     def test_tag_flac_metadata(self, mock_flac_cls: MagicMock, tmp_path: Path) -> None:
@@ -132,3 +134,29 @@ class TestMetadataAndArtworkTagging:
 
         assert success is True
         assert mock_flac.save.called
+
+    @patch("app.engine.audio_tagger.WAVE")
+    def test_tag_wav_metadata_and_artwork(self, mock_wave_cls: MagicMock, tmp_path: Path) -> None:
+        """Verifies MED-03: WAV files are tagged via Mutagen WAVE ID3 chunks."""
+        mock_wave = MagicMock()
+        mock_wave.tags = None
+        mock_wave_cls.return_value = mock_wave
+
+        wav_file = tmp_path / "test.wav"
+        wav_file.write_bytes(b"RIFF dummy wav data")
+        artwork = tmp_path / "cover.jpg"
+        artwork.write_bytes(b"\xff\xd8\xff\xe0dummy jpeg")
+
+        success = tag_audio_file(
+            file_path=wav_file,
+            title="Acoustic Session",
+            artist="Orchestra",
+            album="Master Series",
+            track_number=1,
+            artwork_path=artwork,
+        )
+
+        assert success is True
+        assert mock_wave.add_tags.called
+        assert mock_wave.save.called
+        assert mock_wave.tags.add.called

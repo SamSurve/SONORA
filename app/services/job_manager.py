@@ -18,7 +18,12 @@ from pathlib import Path
 from typing import Any
 
 from app.core.config import settings
-from app.core.constants import AudioFormat, JobStatus
+from app.core.constants import (
+    PROFILE_TAXONOMY,
+    AudioFormat,
+    DownloadProfile,
+    JobStatus,
+)
 from app.core.security import (
     InvalidURLException,
     SSRFSecurityException,
@@ -65,13 +70,48 @@ class RateLimitExceededException(Exception):
 
 
 class RateLimiter:
-    """Thread-safe rolling window rate limiter per client identity."""
+    """Thread-safe rolling window rate limiter per client identity with bounded storage."""
 
-    def __init__(self, max_requests: int = 10, window_seconds: int = 60) -> None:
+    def __init__(
+        self,
+        max_requests: int = 10,
+        window_seconds: int = 60,
+        max_tracked_clients: int = 10000,
+    ) -> None:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
+        self.max_tracked_clients = max_tracked_clients
         self._history: dict[str, list[float]] = {}
+        self._last_prune_time = time.time()
         self._lock = threading.Lock()
+
+    def _prune_expired_locked(self, cutoff: float) -> None:
+        """Evicts expired client history records and bounds total client count."""
+        stale_clients = [
+            client_id
+            for client_id, timestamps in self._history.items()
+            if not timestamps or timestamps[-1] <= cutoff
+        ]
+        for client_id in stale_clients:
+            self._history.pop(client_id, None)
+
+        if len(self._history) > self.max_tracked_clients:
+            sorted_clients = sorted(
+                self._history.items(),
+                key=lambda item: item[1][-1] if item[1] else 0.0,
+            )
+            excess = len(self._history) - self.max_tracked_clients
+            for client_id, _ in sorted_clients[:excess]:
+                self._history.pop(client_id, None)
+
+    def prune(self, force: bool = False) -> None:
+        """Explicitly purges expired client rate-limit histories."""
+        now = time.time()
+        cutoff = now - self.window_seconds
+        with self._lock:
+            if force or (now - self._last_prune_time >= self.window_seconds):
+                self._prune_expired_locked(cutoff)
+                self._last_prune_time = now
 
     def is_allowed(self, client_id: str | None) -> bool:
         if not client_id:
@@ -79,6 +119,14 @@ class RateLimiter:
         now = time.time()
         cutoff = now - self.window_seconds
         with self._lock:
+            # Periodic or capacity-triggered cleanup to prevent unbounded memory growth
+            if (
+                now - self._last_prune_time >= self.window_seconds
+                or len(self._history) >= self.max_tracked_clients
+            ):
+                self._prune_expired_locked(cutoff)
+                self._last_prune_time = now
+
             timestamps = self._history.get(client_id, [])
             valid_timestamps = [t for t in timestamps if t > cutoff]
             if len(valid_timestamps) >= self.max_requests:
@@ -180,12 +228,13 @@ class JobManager:
     def submit_job(
         self,
         url: str,
-        target_format: AudioFormat | str = AudioFormat.MP3_320,
-        quality: str = "320",
+        target_format: AudioFormat | str | None = None,
+        quality: str | None = None,
         is_playlist: bool = False,
         selected_indices: list[int] | None = None,
         title: str | None = None,
         client_id: str | None = None,
+        profile: DownloadProfile | str = DownloadProfile.STANDARD,
     ) -> str:
         """Submits a new download job for execution.
 
@@ -224,9 +273,43 @@ class JobManager:
             raise StorageLimitExceededException(msg)
 
         job_id = str(uuid.uuid4())
-        format_str = (
-            target_format.value if isinstance(target_format, AudioFormat) else str(target_format)
-        )
+
+        # Resolve profile and semantics
+        if isinstance(profile, DownloadProfile):
+            resolved_profile = profile
+        elif isinstance(profile, str):
+            try:
+                resolved_profile = DownloadProfile(profile.strip().lower())
+            except ValueError:
+                resolved_profile = DownloadProfile.STANDARD
+        else:
+            resolved_profile = DownloadProfile.STANDARD
+
+        # Infer profile from target_format if defaulted and explicit non-standard format was passed
+        if profile == DownloadProfile.STANDARD and target_format is not None:
+            fmt_lower = str(target_format).lower()
+            if "flac" in fmt_lower:
+                resolved_profile = DownloadProfile.AUDIOPHILE
+            elif "mp4" in fmt_lower:
+                resolved_profile = DownloadProfile.RAW_VIDEO
+
+        semantics = PROFILE_TAXONOMY[resolved_profile]
+
+        if resolved_profile != DownloadProfile.STANDARD or target_format is None:
+            format_str = (
+                semantics.audio_format.value
+                if isinstance(semantics.audio_format, AudioFormat)
+                else str(semantics.audio_format)
+            )
+            quality_str = semantics.bitrate_kbps or quality or "320"
+        else:
+            format_str = (
+                target_format.value
+                if isinstance(target_format, AudioFormat)
+                else str(target_format)
+            )
+            quality_str = quality or "320"
+
         expires_at = datetime.now(UTC) + timedelta(minutes=settings.JOB_TTL_MINUTES)
 
         # Step 3: Persist Initial State in SQLite using write lock context manager
@@ -236,7 +319,8 @@ class JobManager:
                 job_id=job_id,
                 url=url,
                 target_format=format_str,
-                quality=quality,
+                quality=quality_str,
+                profile=resolved_profile.value,
                 is_playlist=is_playlist,
                 title=title or "Preparing download...",
                 expires_at=expires_at,
@@ -252,14 +336,20 @@ class JobManager:
             job_id=job_id,
             url=url,
             target_format=format_str,
-            quality=quality,
+            quality=quality_str,
             is_playlist=is_playlist,
             selected_indices=selected_indices,
             context=context,
+            profile=resolved_profile,
         )
         context.future = future
 
-        logger.info("Enqueued job '%s' for URL: %s", job_id, url)
+        logger.info(
+            "Enqueued job '%s' (profile=%s) for URL: %s",
+            job_id,
+            resolved_profile.value,
+            url,
+        )
         return job_id
 
     def cancel_job(self, job_id: str) -> bool:
@@ -345,6 +435,7 @@ class JobManager:
         is_playlist: bool,
         selected_indices: list[int] | None,
         context: JobContext,
+        profile: DownloadProfile | str = DownloadProfile.STANDARD,
     ) -> None:
         """Worker wrapper implementing bounded retries with exponential backoff."""
         max_retries = 3
@@ -365,6 +456,7 @@ class JobManager:
                     is_playlist=is_playlist,
                     selected_indices=selected_indices,
                     context=context,
+                    profile=profile,
                 )
                 # Succeeded
                 return
@@ -429,6 +521,7 @@ class JobManager:
         is_playlist: bool,
         selected_indices: list[int] | None,
         context: JobContext,
+        profile: DownloadProfile | str = DownloadProfile.STANDARD,
     ) -> None:
         """Executes the full media lifecycle: download -> tag -> package -> complete."""
         temp_dir = get_job_temp_dir(job_id)
@@ -469,6 +562,7 @@ class JobManager:
             selected_indices=selected_indices,
             progress_callback=_progress_bridge,
             cancel_event=context.cancel_event,
+            profile=profile,
         )
 
         if context.cancel_event.is_set():
@@ -495,23 +589,32 @@ class JobManager:
             if default_artwork_path:
                 break
 
-        # Discover audio files produced in scratchpad
-        audio_extensions = {".mp3", ".m4a", ".opus", ".flac", ".wav"}
-        downloaded_audio_files = [
-            f for f in temp_dir.iterdir() if f.is_file() and f.suffix.lower() in audio_extensions
+        # Discover media files produced in scratchpad (supporting audio and video formats)
+        media_extensions = {
+            ".mp3",
+            ".m4a",
+            ".opus",
+            ".flac",
+            ".wav",
+            ".mp4",
+            ".mkv",
+            ".webm",
+        }
+        downloaded_media_files = [
+            f for f in temp_dir.iterdir() if f.is_file() and f.suffix.lower() in media_extensions
         ]
 
-        if not downloaded_audio_files:
+        if not downloaded_media_files:
             raise FileNotFoundError(
-                f"No audio files found in scratchpad '{temp_dir}' after download."
+                f"No media files found in scratchpad '{temp_dir}' after download."
             )
 
-        # Process each audio file, tag, and move to completed directory
+        # Process each media file, tag, and move to completed directory
         final_files: list[Path] = []
         album_name = info.get("title") or "Unknown Album"
         uploader = info.get("uploader") or info.get("channel") or "Unknown Artist"
 
-        for idx, src_file in enumerate(sorted(downloaded_audio_files), start=1):
+        for idx, src_file in enumerate(sorted(downloaded_media_files), start=1):
             if context.cancel_event.is_set():
                 raise DownloadCancelledException("Cancelled during tagging.")
 
@@ -564,13 +667,14 @@ class JobManager:
                     )
                     update_track_status(conn, job_id=job_id, track_index=idx, status="completed")
 
-        # Step 3: Archive packaging if playlist (Always package ZIP for playlists)
+        # Step 3: Archive packaging (Package ZIP for playlists or multi-file downloads)
         final_delivery_path: Path
-        if is_playlist:
+        if is_playlist or len(final_files) > 1:
+            zip_title = album_name if is_playlist else (info.get("title") or "download")
             zip_path, zip_size = create_playlist_zip(
                 job_id=job_id,
                 job_completed_dir=completed_dir,
-                playlist_title=album_name,
+                playlist_title=zip_title,
             )
             final_delivery_path = zip_path
             total_size = zip_size

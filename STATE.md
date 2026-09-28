@@ -1,11 +1,11 @@
 # SONORA — PROJECT STATE
 
-**Current Phase:** Phase 4 — Post-Release Hardening & Enterprise Production
-**Current Sprint:** Sprint 2 — Batch 2: High-Priority Hardening (COMPLETED)
+**Current Phase:** Phase 5 — Core Product Enhancements
+**Current Feature:** Feature 1 — Download Profiles Implementation (COMPLETED)
 **Baseline Commit:** `0238f5a` (`fix: complete phase 4 sprint 1 hardening`)
 **Remote:** `https://github.com/SamSurve/SONORA.git`
 **Branch:** `master`
-**Status:** Sprint 2 Batches 1 & 2 Implemented & Regression Tested — Ready for Review & Checkpoint
+**Status:** Phase 5 Feature 1 Implemented & Regression Tested — Ready for Review & Checkpoint
 
 ---
 
@@ -34,34 +34,32 @@
 ---
 
 ## 2. Test Suite & Code Quality Status
-- **Test Modules:** 19 modules, 110+ tests
-- **New Regression Tests:**
-  - `test_sse_event_stream_mapping_no_attribute_error` in `test_api.py`
-  - `test_sse_db_fallback_event_schema_alignment` in `test_api.py`
-  - `test_cors_origins_comma_separated_parsing` in `test_api.py`
-  - `test_unrelated_urllib_not_contaminated_by_redirect_hook` in `test_api.py`
-  - `test_ytdlp_redirect_to_restricted_target_rejected` in `test_api.py`
-  - `test_ytdlp_presend_ssrf_validation_hook` in `test_api.py`
-  - `test_create_job_empty_playlist_rejected` in `test_api.py`
-  - `test_trusted_proxies_client_ip_extraction` in `test_api.py`
-  - `test_build_ydl_options_empty_playlist_indices` in `test_api.py`
-  - `test_file_delivery_directory_confinement` in `test_api.py`
-  - `test_file_delivery_completed_success` in `test_api.py`
-  - `test_cors_policy_configuration` in `test_api.py`
-  - `test_inspecting_state_cancel_button` in `test_frontend.py`
-  - `test_css_syntax_no_nested_mobile_menu_corruption` in `test_frontend.py`
-  - `test_xss_safety_in_playlist_renderer` in `test_frontend.py`
-  - `test_metadata_inspection_abort_and_timeout` in `test_frontend.py`
-  - `test_playlist_checklist_css_constraints` in `test_frontend.py`
-  - `test_empty_playlist_selection_ui_behavior` in `test_frontend.py`
-  - `test_client_id_rate_limiting_enforcement` in `test_quota_enforcement.py`
-  - `test_schema_init_db_runs_only_once_per_database_path` in `test_database.py`
-  - `test_tracks_unique_constraint_and_upsert` in `test_database.py`
-  - `test_sse_polling_fallback_bounded_retries` in `test_frontend.py`
-  - `test_cancellation_during_retry_backoff` in `test_job_manager.py`
-  - `test_windows_reserved_device_names_prefixed` in `test_sanitizer.py`
-  - `test_format_track_filename_windows_reserved` in `test_sanitizer.py`
-  - `test_safe_path_join_handles_windows_reserved_names` in `test_sanitizer.py`
+- **Test Modules:** 19 modules, 120+ tests
+- **New Regression Tests (Sprint 2 Batches 1, 2 & 3):**
+  - `test_schema_init_db_runs_only_once_per_database_path` in `test_database.py` (CRIT-01)
+  - `test_sse_polling_fallback_bounded_retries` in `test_frontend.py` (CRIT-02)
+  - `test_ytdlp_presend_ssrf_validation_hook` in `test_api.py` (HIGH-01)
+  - `test_windows_reserved_device_names_prefixed` in `test_sanitizer.py` (HIGH-02)
+  - `test_format_track_filename_windows_reserved` in `test_sanitizer.py` (HIGH-02)
+  - `test_safe_path_join_handles_windows_reserved_names` in `test_sanitizer.py` (HIGH-02)
+  - `test_create_job_empty_playlist_rejected` in `test_api.py` (HIGH-03)
+  - `test_build_ydl_options_empty_playlist_indices` in `test_api.py` (HIGH-03)
+  - `test_empty_playlist_selection_ui_behavior` in `test_frontend.py` (HIGH-03)
+  - `test_playlist_checklist_css_constraints` in `test_frontend.py` (HIGH-04)
+  - `test_tracks_unique_constraint_and_upsert` in `test_database.py` (HIGH-05)
+  - `test_cancellation_during_retry_backoff` in `test_job_manager.py` (HIGH-06)
+  - `test_trusted_proxies_client_ip_extraction` in `test_api.py` (HIGH-07)
+  - `test_rate_limiter_stale_history_pruning` in `test_quota_enforcement.py` (MED-01)
+  - `test_rate_limiter_capacity_bounding` in `test_quota_enforcement.py` (MED-01)
+  - `test_tag_mp3_metadata_and_artwork` (asserts ID3v2.3) in `test_audio_tagger.py` (MED-02)
+  - `test_tag_wav_metadata_and_artwork` in `test_audio_tagger.py` (MED-03)
+  - `test_multi_file_non_playlist_job_packages_zip` in `test_job_manager.py` (MED-04)
+  - `test_favicon_delivery_and_html_link` in `test_frontend.py` (MED-05)
+  - `test_url_input_accessible_label` in `test_frontend.py` (MED-06)
+  - `test_format_chips_radio_group_semantics` in `test_frontend.py` (MED-07)
+  - `test_dynamic_status_aria_live_regions` in `test_frontend.py` (MED-08)
+  - `test_extract_media_info_playlistend_cap` in `test_metadata_service.py` (MED-09)
+  - `test_dark_mode_elevation_shadows` in `test_frontend.py` (MED-10)
 - **Legacy File Integrity:** 100% byte-for-byte preserved (`app.py`, `music_fixer.py`, `templates/index.html`, `ffmpeg.exe`).
 
 ---
@@ -79,3 +77,29 @@
 | **HIGH-05** | Database / Schema | `tracks` table missing UNIQUE constraint | **FIXED** | Added `UNIQUE(job_id, track_index)` to `tracks` table and `SCHEMA_SQL`, added migration in `init_db`, and used `ON CONFLICT DO UPDATE` in `add_track_to_job`. |
 | **HIGH-06** | Engine / Concurrency | Uninterruptible `time.sleep` in retry backoff loop | **FIXED** | Replaced `time.sleep` with `context.cancel_event.wait(timeout=sleep_duration)` and added configurable `RETRY_BACKOFF_BASE_SECONDS`. |
 | **HIGH-07** | Security / Reverse Proxy | Reverse proxy trust not configurable (`X-Forwarded-For` spoofing) | **FIXED** | Added `TRUSTED_PROXIES` in `config.py` and implemented `extract_client_ip()` in `endpoints.py` to only trust forwarded headers from approved proxies. |
+| **MED-01** | Backend / Memory | RateLimiter unbounded client history leak | **FIXED** | Added `max_tracked_clients=10000`, `_prune_expired_locked()`, and automatic pruning in `RateLimiter` (`job_manager.py`). |
+| **MED-02** | Engine / Compatibility | Mutagen ID3v2.4 Windows Explorer incompatibility | **FIXED** | Enforced `v2_version=3` in `_tag_mp3()` (`audio_tagger.py`), enabling native Windows Explorer metadata display. |
+| **MED-03** | Engine / Metadata | Missing WAV RIFF/ID3 audio tagging | **FIXED** | Added `_tag_wav()` using `mutagen.wave.WAVE` and ID3 chunk tagging in `audio_tagger.py`. |
+| **MED-04** | Engine / Packaging | Multi-file non-playlist download drops tracks | **FIXED** | Packaged multiple output files into ZIP archive if `is_playlist or len(final_files) > 1` in `job_manager.py`. |
+| **MED-05** | Frontend / Assets | Missing browser favicon causing 404 spam | **FIXED** | Added `app/static/img/favicon.svg`, linked in `index.html`, and added `/favicon.ico` route in `main.py`. |
+| **MED-06** | Accessibility / WCAG | `#url-input` missing accessible label | **FIXED** | Added `<label for="url-input" class="sr-only">`, `aria-label`, and `.sr-only` CSS utility in `index.html` and `styles.css`. |
+| **MED-07** | Accessibility / UX | Format chips lack radio group semantics | **FIXED** | Added `role="radiogroup"`, `role="radio"`, `aria-checked`, and keyboard arrow navigation in `index.html` and `app.js`. |
+| **MED-08** | Accessibility / Telemetry| Dynamic progress/status lack ARIA live regions | **FIXED** | Added `role="status"` and `aria-live="polite"` on `#dl-status-text`/`#progress-percent` and `role="alert"`/`aria-live="assertive"` on `#error-message`. |
+| **MED-09** | Engine / Memory | Uncapped flat metadata extraction memory spike | **FIXED** | Added `"playlistend": settings.MAX_PLAYLIST_ITEMS` in `extract_media_info()` in `ytdlp_engine.py`. |
+| **MED-10** | CSS / Theming | Missing dark mode shadows & scrollbars | **FIXED** | Added dark mode `--shadow-sm/md/lg` tokens and `color-scheme: dark` in `styles.css`. |
+
+---
+
+## 4. Phase 5 Feature 1 — Download Profiles Matrix
+
+| Component | Feature Specification | Status | Implementation Details |
+| :--- | :--- | :--- | :--- |
+| **Taxonomy** | Core Profile Enum & Semantics | **COMPLETED** | Added `DownloadProfile` enum (`AUDIOPHILE`, `STANDARD`, `SPACE_SAVER`, `RAW_VIDEO`) and `PROFILE_TAXONOMY` in `app/core/constants.py`. |
+| **Database** | Profile Persistence & Migration | **COMPLETED** | Added `profile TEXT NOT NULL DEFAULT 'standard'` to `jobs` table schema, migration in `init_db()`, and updated `create_job()` in `app/db/repository.py`. |
+| **Engine / ytdlp** | Profile-driven options assembly | **COMPLETED** | Updated `build_ydl_options()` and `execute_download()` in `app/engine/ytdlp_engine.py` to configure format selectors and postprocessors per profile. |
+| **Engine / Packaging** | Support video containers in ZIP | **COMPLETED** | Expanded `MEDIA_EXTENSIONS` in `app/engine/archive_packager.py` to include `.mp4`, `.mkv`, and `.webm`. |
+| **Engine / Tagging** | Support MP4 video metadata | **COMPLETED** | Updated `tag_audio_file()` in `app/engine/audio_tagger.py` to support `.mp4` containers via Mutagen `MP4`. |
+| **Job Manager** | Pipeline lifecycle for video & audio | **COMPLETED** | Updated `submit_job()`, `_run_job_with_retries()`, and `_execute_job_pipeline()` in `app/services/job_manager.py` for profile resolution, scratchpad media discovery, and tagging. |
+| **API Endpoints** | REST endpoints & validation | **COMPLETED** | Added `GET /api/v1/profiles`, added `profile` field with `@field_validator` in `JobSubmitRequest`, and supported `video/mp4` MIME delivery in `app/api/v1/endpoints.py`. |
+| **Frontend UI** | Download Profile selection panel | **COMPLETED** | Added accessible chips with `role="radiogroup"` / `role="radio"` in `index.html`, grid styles in `styles.css`, and selection + keyboard navigation in `app.js`. |
+| **Testing** | Automated regression coverage | **COMPLETED** | Created `tests/test_profiles.py` (17 tests) and added frontend tests in `tests/test_frontend.py`. |

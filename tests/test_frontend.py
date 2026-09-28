@@ -211,3 +211,103 @@ class TestSonoraFrontendAndAnimation:
         assert "elements.startDownloadBtn.disabled = true;" in js
         assert "Select at least one track to download" in js
         assert "Please select at least one track from the playlist to download." in js
+
+    def test_favicon_delivery_and_html_link(self) -> None:
+        """Verifies MED-05: Favicon is served at /favicon.ico and linked in HTML."""
+        # Endpoint returns SVG favicon
+        res_ico = client.get("/favicon.ico")
+        assert res_ico.status_code == 200
+        assert "image/svg+xml" in res_ico.headers.get("content-type", "")
+
+        # Static file is reachable
+        res_static = client.get("/static/img/favicon.svg")
+        assert res_static.status_code == 200
+
+        # HTML references favicon
+        res_html = client.get("/")
+        assert res_html.status_code == 200
+        assert 'href="/static/img/favicon.svg"' in res_html.text
+
+    def test_url_input_accessible_label(self) -> None:
+        """Verifies MED-06: URL input has accessible label and sr-only helper."""
+        response = client.get("/")
+        assert response.status_code == 200
+        html = response.text
+        assert '<label for="url-input" class="sr-only">' in html
+        assert 'aria-label="Media URL to download"' in html
+
+        css_res = client.get("/static/css/styles.css")
+        assert ".sr-only {" in css_res.text
+
+    def test_format_chips_radio_group_semantics(self) -> None:
+        """Verifies MED-07: Format chips have radiogroup semantics and arrow navigation."""
+        response = client.get("/")
+        assert response.status_code == 200
+        html = response.text
+        assert 'role="radiogroup"' in html
+        assert 'role="radio"' in html
+        assert 'aria-checked="true"' in html
+
+        js_res = client.get("/static/js/app.js")
+        assert js_res.status_code == 200
+        js = js_res.text
+        assert "selectFormatChip" in js
+        assert "ArrowRight" in js
+        assert "ArrowLeft" in js
+
+    def test_dynamic_status_aria_live_regions(self) -> None:
+        """Verifies MED-08: Progress, status, and error elements define ARIA live regions."""
+        response = client.get("/")
+        assert response.status_code == 200
+        html = response.text
+        assert 'id="dl-status-text" class="mini-status" role="status" aria-live="polite"' in html
+        assert 'id="progress-percent" class="metric-percent" aria-live="polite"' in html
+        assert 'id="error-message" class="error-message" role="alert" aria-live="assertive"' in html
+        assert 'role="progressbar"' in html
+
+    def test_dark_mode_elevation_shadows(self) -> None:
+        """Verifies styles.css defines dark shadows and color-scheme for dark mode."""
+        response = client.get("/static/css/styles.css")
+        assert response.status_code == 200
+        css = response.text
+        assert "color-scheme: dark;" in css
+        assert "--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);" in css
+
+    def test_download_profiles_dom_semantics_and_styles(self) -> None:
+        """Verifies Download Profiles UI chips, accessibility, and CSS rules."""
+        response = client.get("/")
+        assert response.status_code == 200
+        html = response.text
+
+        # Verify profile selector container and ARIA group
+        assert 'class="profile-selection-panel"' in html
+        assert 'id="profile-label"' in html
+        assert 'class="profile-grid"' in html
+
+        # Verify 4 profile chips exist
+        assert 'data-profile="audiophile"' in html
+        assert 'data-profile="standard"' in html
+        assert 'data-profile="space_saver"' in html
+        assert 'data-profile="raw_video"' in html
+
+        # Verify default active profile is standard
+        assert 'data-profile="standard"' in html
+        assert 'class="profile-chip active"' in html
+
+        # Verify CSS styles for profiles
+        css_res = client.get("/static/css/styles.css")
+        assert css_res.status_code == 200
+        css = css_res.text
+        assert ".profile-selection-panel" in css
+        assert ".profile-grid" in css
+        assert ".profile-chip" in css
+        assert ".profile-chip.active" in css
+
+        # Verify JS handles profile selection
+        js_res = client.get("/static/js/app.js")
+        assert js_res.status_code == 200
+        js = js_res.text
+        assert "selectProfileChip" in js
+        assert "initProfileSelection" in js
+        assert "selectedProfile: 'standard'" in js
+        assert "profile: context.selectedProfile" in js

@@ -13,6 +13,7 @@ from mutagen.flac import FLAC, Picture
 from mutagen.id3 import APIC, ID3, TALB, TIT2, TPE1, TRCK, ID3NoHeaderError
 from mutagen.mp4 import MP4, MP4Cover
 from mutagen.oggopus import OggOpus
+from mutagen.wave import WAVE
 
 from app.core.constants import AudioFormat
 from app.engine.ffmpeg_locator import get_ffmpeg_path
@@ -116,7 +117,7 @@ def tag_audio_file(
 ) -> bool:
     """Injects metadata tags and embeds cover art into an audio file.
 
-    Supports MP3 (ID3v2.4), M4A (MP4/AAC), FLAC, and Ogg/Opus.
+    Supports MP3 (ID3v2.3), M4A (MP4/AAC), FLAC, Ogg/Opus, and WAV (RIFF/ID3).
 
     Returns:
         True if tagging succeeded or was partially applied; False on error.
@@ -140,12 +141,14 @@ def tag_audio_file(
     try:
         if ext == ".mp3":
             _tag_mp3(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
-        elif ext == ".m4a":
+        elif ext in (".m4a", ".mp4"):
             _tag_m4a(file_path, title, artist, album_title, track_number, artwork_data)
         elif ext == ".flac":
             _tag_flac(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
         elif ext == ".opus":
             _tag_opus(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
+        elif ext == ".wav":
+            _tag_wav(file_path, title, artist, album_title, track_number, artwork_data, mime_type)
         return True
     except Exception as e:
         logger.warning("Failed to tag audio file '%s': %s", file_path, e)
@@ -184,7 +187,41 @@ def _tag_mp3(
             )
         )
 
-    tags.save(str(file_path), v2_version=4)
+    tags.save(str(file_path), v2_version=3)
+
+
+def _tag_wav(
+    file_path: Path,
+    title: str,
+    artist: str,
+    album: str,
+    track_number: int | None,
+    artwork_data: bytes | None,
+    mime_type: str,
+) -> None:
+    audio = WAVE(str(file_path))
+    if audio.tags is None:
+        audio.add_tags()
+
+    audio.tags.add(TIT2(encoding=3, text=title))
+    audio.tags.add(TPE1(encoding=3, text=artist))
+    audio.tags.add(TALB(encoding=3, text=album))
+
+    if track_number is not None:
+        audio.tags.add(TRCK(encoding=3, text=str(track_number)))
+
+    if artwork_data:
+        audio.tags.add(
+            APIC(
+                encoding=3,
+                mime=mime_type,
+                type=3,  # Front cover
+                desc="Cover",
+                data=artwork_data,
+            )
+        )
+
+    audio.save()
 
 
 def _tag_m4a(

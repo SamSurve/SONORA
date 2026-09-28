@@ -42,3 +42,20 @@ def test_extract_metadata_single_track_normalization() -> None:
     assert result["is_playlist"] is False
     assert result["track_count"] == 1
     assert result["tracks"][0]["index"] == 1
+
+
+def test_extract_media_info_playlistend_cap() -> None:
+    """Verifies MED-09: extract_media_info caps flat playlist extraction with playlistend."""
+    from app.core.config import settings
+    from app.engine.ytdlp_engine import extract_media_info
+
+    with patch("yt_dlp.YoutubeDL") as mock_ydl_cls:
+        mock_ydl = mock_ydl_cls.return_value.__enter__.return_value
+        mock_ydl.extract_info.return_value = {"id": "pl1", "title": "Test Playlist"}
+
+        extract_media_info("https://music.youtube.com/playlist?list=PL123", is_playlist=True)
+
+        assert mock_ydl_cls.called
+        ydl_opts = mock_ydl_cls.call_args[0][0]
+        assert ydl_opts.get("playlistend") == settings.MAX_PLAYLIST_ITEMS
+        assert ydl_opts.get("extract_flat") == "in_playlist"
