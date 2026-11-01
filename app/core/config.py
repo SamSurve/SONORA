@@ -60,21 +60,33 @@ try:
                 return [str(orig).strip() for orig in v if str(orig).strip()]
             return []
 
-        # Reverse Proxy & Client IP Trust (HIGH-07)
-        TRUSTED_PROXIES: list[str] = [
-            "127.0.0.1",
-            "::1",
-        ]
+        # Reverse Proxy & Client IP Trust (SEC-03)
+        TRUSTED_PROXIES: list[str] = []
 
         @field_validator("TRUSTED_PROXIES", mode="before")
         @classmethod
         def parse_trusted_proxies(cls, v: object) -> list[str]:
-            """Parse comma-separated string or list into list of trusted proxy IPs."""
+            """Parse comma-separated string or list into list of trusted proxy IPs/CIDRs."""
+            if not v:
+                return []
             if isinstance(v, str):
-                return [ip.strip() for ip in v.split(",") if ip.strip()]
-            if isinstance(v, list | tuple):
-                return [str(ip).strip() for ip in v if str(ip).strip()]
-            return ["127.0.0.1", "::1"]
+                raw_list = [ip.strip() for ip in v.split(",") if ip.strip()]
+            elif isinstance(v, list | tuple | set):
+                raw_list = [str(ip).strip() for ip in v if str(ip).strip()]
+            else:
+                return []
+
+            import ipaddress
+
+            for item in raw_list:
+                clean_item = item.strip("[]")
+                try:
+                    ipaddress.ip_network(clean_item, strict=False)
+                except ValueError as err:
+                    raise ValueError(
+                        f"Invalid IP address or CIDR range in TRUSTED_PROXIES: '{item}'"
+                    ) from err
+            return raw_list
 
         # Database
         DB_PATH: Path = Path("data/auralis.db")
@@ -82,10 +94,27 @@ try:
         # Optional explicit FFmpeg executable override
         FFMPEG_PATH: str | None = None
 
+        # Optional Outbound yt-dlp Network & Authentication Configuration (INF-01)
+        YTDLP_PROXY: str | None = None
+        YTDLP_COOKIES_PATH: Path | None = None
+
+        @field_validator("YTDLP_COOKIES_PATH", mode="before")
+        @classmethod
+        def parse_cookies_path(cls, v: object) -> Path | None:
+            if not v:
+                return None
+            return Path(str(v).strip())
+
         # Public Web, SEO, & Security Headers
         CANONICAL_BASE_URL: str = "https://sonora.app"
         ENABLE_SECURITY_HEADERS: bool = True
         HSTS_MAX_AGE_SECONDS: int = 31536000
+
+        # Anonymous Session Management (SEC-01)
+        SESSION_COOKIE_NAME: str = "sonora_session_id"
+        SESSION_COOKIE_MAX_AGE_SECONDS: int = 30 * 24 * 3600  # 30 days
+        SESSION_COOKIE_SAME_SITE: str = "lax"
+        SESSION_COOKIE_SECURE: bool | None = None  # None = auto-detect based on APP_ENV
 
         def ensure_directories(self) -> None:
             """Ensures all necessary local storage directories exist."""
@@ -132,11 +161,35 @@ except ImportError:
             self.DB_PATH: Path = Path(os.getenv("DB_PATH", "data/auralis.db"))
             self.FFMPEG_PATH: str | None = os.getenv("FFMPEG_PATH")
 
+            self.YTDLP_PROXY: str | None = os.getenv("YTDLP_PROXY")
+            raw_cookies = os.getenv("YTDLP_COOKIES_PATH")
+            self.YTDLP_COOKIES_PATH: Path | None = Path(raw_cookies.strip()) if raw_cookies else None
+
             self.CANONICAL_BASE_URL: str = os.getenv("CANONICAL_BASE_URL", "https://sonora.app")
             self.ENABLE_SECURITY_HEADERS: bool = (
                 os.getenv("ENABLE_SECURITY_HEADERS", "true").lower() in ("true", "1")
             )
             self.HSTS_MAX_AGE_SECONDS: int = int(os.getenv("HSTS_MAX_AGE_SECONDS", "31536000"))
+
+            self.SESSION_COOKIE_NAME: str = os.getenv(
+                "SESSION_COOKIE_NAME", "sonora_session_id"
+            )
+            self.SESSION_COOKIE_MAX_AGE_SECONDS: int = int(
+                os.getenv("SESSION_COOKIE_MAX_AGE_SECONDS", str(30 * 24 * 3600))
+            )
+            self.SESSION_COOKIE_SAME_SITE: str = os.getenv("SESSION_COOKIE_SAME_SITE", "lax")
+            raw_secure = os.getenv("SESSION_COOKIE_SECURE")
+            self.SESSION_COOKIE_SECURE: bool | None = (
+                (raw_secure.lower() in ("true", "1")) if raw_secure is not None else None
+            )
+
+            raw_proxies = os.getenv("TRUSTED_PROXIES", "")
+            if raw_proxies:
+                self.TRUSTED_PROXIES: list[str] = [
+                    ip.strip() for ip in raw_proxies.split(",") if ip.strip()
+                ]
+            else:
+                self.TRUSTED_PROXIES = []
 
         def ensure_directories(self) -> None:
             """Ensures all necessary local storage directories exist."""

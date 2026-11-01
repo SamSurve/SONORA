@@ -20,6 +20,7 @@ dependencies = [
     "yt-dlp==2024.9.27",
     "mutagen==1.47.0",
     "python-multipart>=0.0.20",
+    "pillow>=10.4.0",
 ]
 
 [project.optional-dependencies]
